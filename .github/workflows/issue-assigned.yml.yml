@@ -1,0 +1,124 @@
+name: Move assigned issue to In Progress
+
+on:
+  issues:
+    types: [assigned]
+
+jobs:
+  move-to-in-progress:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Move issue to In Progress if currently Todo
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PROJECT_NUMBER: 5
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+        run: |
+          gh api graphql \
+            -f query='
+              query($login: String!, $number: Int!) {
+                user(login: $login) {
+                  projectV2(number: $number) {
+                    id
+
+                    fields(first: 50) {
+                      nodes {
+                        ... on ProjectV2SingleSelectField {
+                          id
+                          name
+                          options {
+                            id
+                            name
+                          }
+                        }
+                      }
+                    }
+
+                    items(first: 100) {
+                      nodes {
+                        id
+                        content {
+                          ... on Issue {
+                            id
+                          }
+                        }
+                        fieldValueByName(name: "Status") {
+                          ... on ProjectV2ItemFieldSingleSelectValue {
+                            name
+                            optionId
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ' \
+            -f login='hufzohel' \
+            -F number="$PROJECT_NUMBER" \
+            > project.json
+
+          PROJECT_ID=$(jq -r '.data.user.projectV2.id' project.json)
+
+          STATUS_FIELD_ID=$(jq -r '
+            .data.user.projectV2.fields.nodes[]
+            | select(.name == "Status")
+            | .id
+          ' project.json)
+
+          IN_PROGRESS_OPTION_ID=$(jq -r '
+            .data.user.projectV2.fields.nodes[]
+            | select(.name == "Status")
+            | .options[]
+            | select(.name == "In Progress")
+            | .id
+          ' project.json)
+
+          ITEM=$(jq -c --arg issue "$ISSUE_NODE_ID" '
+            .data.user.projectV2.items.nodes[]
+            | select(.content.id == $issue)
+          ' project.json)
+
+          ITEM_ID=$(echo "$ITEM" | jq -r '.id')
+          CURRENT_STATUS=$(echo "$ITEM" | jq -r '.fieldValueByName.name // "UNKNOWN"')
+
+          echo "Current status: $CURRENT_STATUS"
+
+          if [ "$CURRENT_STATUS" != "Todo" ]; then
+            echo "Issue is already past Todo. Nothing to do."
+            exit 0
+          fi
+
+          echo "Moving issue from Todo to In Progress..."
+
+          gh api graphql \
+            -f query='
+              mutation(
+                $projectId: ID!,
+                $itemId: ID!,
+                $fieldId: ID!,
+                $optionId: String!
+              ) {
+                updateProjectV2ItemFieldValue(
+                  input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: {
+                      singleSelectOptionId: $optionId
+                    }
+                  }
+                ) {
+                  projectV2Item {
+                    id
+                  }
+                }
+              }
+            ' \
+            -f projectId="$PROJECT_ID" \
+            -f itemId="$ITEM_ID" \
+            -f fieldId="$STATUS_FIELD_ID" \
+            -f optionId="$IN_PROGRESS_OPTION_ID"
+
+          echo "Done."
