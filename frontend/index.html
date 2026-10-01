@@ -1,1 +1,84 @@
-    
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Search - Pipes & Minesweeper</title>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <h1>AI Search</h1>
+
+    <!-- Puzzle selection -->
+    <div>
+        <button id="pipes-button">
+            Pipes
+        </button>
+
+        <button id="minesweeper-button">
+            Minesweeper
+        </button>
+    </div>
+
+    <br>
+
+    <!-- Puzzle controls -->
+    <div>
+        <button id="new-puzzle-button">
+            New Puzzle
+        </button>
+
+        <button id="solve-instantly-button">
+            Solve Instantly
+        </button>
+
+        <button id="solve-step-button">
+            Solve Step by Step
+        </button>
+    </div>
+
+    <br>
+
+    <h2 id="puzzle-name">
+        Select a puzzle
+    </h2>
+
+    <!-- Puzzle board -->
+    <div id="board">
+    </div>
+
+    <br>
+
+    <!-- Status -->
+    <div>
+        <p id="status">
+            No puzzle selected.
+        </p>
+
+        <p>
+            Algorithm:
+            <span id="algorithm">-</span>
+        </p>
+
+        <p>
+            Steps:
+            <span id="steps">-</span>
+        </p>
+
+        <p>
+            Time:
+            <span id="time">-</span>
+        </p>
+    </div>
+
+
+    <script type="module" src="js/app.js"></script>
+
+</body>
+
+</html>

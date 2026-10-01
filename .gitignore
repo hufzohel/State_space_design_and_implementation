@@ -1,0 +1,61 @@
+# =========================
+# Python
+# =========================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python packaging
+*.egg-info/
+dist/
+build/
+
+# =========================
+# Testing / Coverage
+# =========================
+
+.pytest_cache/
+.coverage
+htmlcov/
+
+# =========================
+# IDE / Editor
+# =========================
+
+.vscode/
+.idea/
+
+# =========================
+# OS
+# =========================
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# =========================
+# Environment / Secrets
+# =========================
+
+.env
+.env.*
+
+# =========================
+# Project-generated results
+# =========================
+
+# Ignore benchmark results if they are generated locally.
+
+experiments/results/*.csv
+experiments/results/*.json
+experiments/results/*.log
