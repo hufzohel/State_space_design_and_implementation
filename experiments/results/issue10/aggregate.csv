@@ -1,0 +1,11 @@
+puzzle_type,rows,cols,generator,algorithm,status,input_count,requested_trials,successful_trials,success_rate,execution_time_mean_seconds,execution_time_median_seconds,peak_memory_mean_bytes,peak_memory_median_bytes,expanded_nodes_mean,expanded_nodes_median,solution_length_mean,solution_length_median
+pipes,2,2,tree,dfs,PASS,2,10,10,1.0,0.0042546800104901195,0.004506850033067167,78464,78464.0,162.5,162.5,17.5,17.5
+pipes,2,2,tree,astar,UNSUPPORTED,2,0,0,,,,,,,,,
+pipes,2,2,tile,dfs,PASS,2,10,10,1.0,0.004098609986249358,0.003937550005502999,78464,78464.0,176.5,176.5,14,14.0
+pipes,2,2,tile,astar,UNSUPPORTED,2,0,0,,,,,,,,,
+pipes,2,3,tree,dfs,PASS,2,10,10,1.0,0.049894139997195455,0.0475756999803707,950992,950992.0,1278.5,1278.5,257,257.0
+pipes,2,3,tree,astar,UNSUPPORTED,2,0,0,,,,,,,,,
+pipes,2,3,tile,dfs,PASS,2,10,10,1.0,0.05329445998650044,0.04829000000609085,927120,927120.0,1397.5,1397.5,242.5,242.5
+pipes,2,3,tile,astar,UNSUPPORTED,2,0,0,,,,,,,,,
+minesweeper,5,5,default,dfs,UNSUPPORTED,2,0,0,,,,,,,,,
+minesweeper,5,5,default,astar,UNSUPPORTED,2,0,0,,,,,,,,,

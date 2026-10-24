@@ -1,0 +1,374 @@
+[
+  {
+    "input_id": "pipes_2x2_tree_seed42",
+    "puzzle_type": "pipes",
+    "rows": 2,
+    "cols": 2,
+    "seed": 42,
+    "generator": "tree",
+    "initial_state": [
+      [
+        3,
+        9
+      ],
+      [
+        1,
+        1
+      ]
+    ],
+    "generated_solution": [
+      [
+        6,
+        3
+      ],
+      [
+        8,
+        8
+      ]
+    ],
+    "generation_attempts": 1,
+    "rejected_invalid_attempts": 0,
+    "validation_status": "PASS",
+    "validation_reason": "Initial state is unsolved and the generator's solution passes PipesProblem.is_goal().",
+    "input_hash": "220a42da356febfd1110344030ccb26c54bb8e1d6d570e19feeb8e367578cd4d"
+  },
+  {
+    "input_id": "pipes_2x2_tree_seed43",
+    "puzzle_type": "pipes",
+    "rows": 2,
+    "cols": 2,
+    "seed": 43,
+    "generator": "tree",
+    "initial_state": [
+      [
+        1,
+        9
+      ],
+      [
+        2,
+        12
+      ]
+    ],
+    "generated_solution": [
+      [
+        4,
+        3
+      ],
+      [
+        4,
+        9
+      ]
+    ],
+    "generation_attempts": 1,
+    "rejected_invalid_attempts": 0,
+    "validation_status": "PASS",
+    "validation_reason": "Initial state is unsolved and the generator's solution passes PipesProblem.is_goal().",
+    "input_hash": "de0ab3816bef774d9591dd5761f5df3e36a6e3f80832eb8011ca506806ef5221"
+  },
+  {
+    "input_id": "pipes_2x2_tile_seed42",
+    "puzzle_type": "pipes",
+    "rows": 2,
+    "cols": 2,
+    "seed": 42,
+    "generator": "tile",
+    "initial_state": [
+      [
+        4,
+        8
+      ],
+      [
+        6,
+        3
+      ]
+    ],
+    "generated_solution": [
+      [
+        2,
+        2
+      ],
+      [
+        12,
+        9
+      ]
+    ],
+    "generation_attempts": 1,
+    "rejected_invalid_attempts": 0,
+    "validation_status": "PASS",
+    "validation_reason": "Initial state is unsolved and the generator's solution passes PipesProblem.is_goal().",
+    "input_hash": "9ca5c2f64fa488c973630ea31792233d959e95cd7fad253ac8a9b61acce68ee8"
+  },
+  {
+    "input_id": "pipes_2x2_tile_seed43",
+    "puzzle_type": "pipes",
+    "rows": 2,
+    "cols": 2,
+    "seed": 43,
+    "generator": "tile",
+    "initial_state": [
+      [
+        8,
+        12
+      ],
+      [
+        8,
+        12
+      ]
+    ],
+    "generated_solution": [
+      [
+        4,
+        3
+      ],
+      [
+        4,
+        9
+      ]
+    ],
+    "generation_attempts": 1,
+    "rejected_invalid_attempts": 0,
+    "validation_status": "PASS",
+    "validation_reason": "Initial state is unsolved and the generator's solution passes PipesProblem.is_goal().",
+    "input_hash": "3e74ba7b4e76653e4e681606205014401b301734b98e7f14ea9bf4329ddf94b5"
+  },
+  {
+    "input_id": "pipes_2x3_tree_seed42",
+    "puzzle_type": "pipes",
+    "rows": 2,
+    "cols": 3,
+    "seed": 42,
+    "generator": "tree",
+    "initial_state": [
+      [
+        3,
+        13,
+        2
+      ],
+      [
+        2,
+        6,
+        8
+      ]
+    ],
+    "generated_solution": [
+      [
+        6,
+        7,
+        1
+      ],
+      [
+        8,
+        12,
+        1
+      ]
+    ],
+    "generation_attempts": 1,
+    "rejected_invalid_attempts": 0,
+    "validation_status": "PASS",
+    "validation_reason": "Initial state is unsolved and the generator's solution passes PipesProblem.is_goal().",
+    "input_hash": "9de1dd46c06eea1769e17ffbcb87fb50b9930fbad9c4bb931504bf351a6f5346"
+  },
+  {
+    "input_id": "pipes_2x3_tree_seed43",
+    "puzzle_type": "pipes",
+    "rows": 2,
+    "cols": 3,
+    "seed": 43,
+    "generator": "tree",
+    "initial_state": [
+      [
+        2,
+        11,
+        8
+      ],
+      [
+        8,
+        7,
+        8
+      ]
+    ],
+    "generated_solution": [
+      [
+        4,
+        7,
+        1
+      ],
+      [
+        4,
+        13,
+        1
+      ]
+    ],
+    "generation_attempts": 1,
+    "rejected_invalid_attempts": 0,
+    "validation_status": "PASS",
+    "validation_reason": "Initial state is unsolved and the generator's solution passes PipesProblem.is_goal().",
+    "input_hash": "6e1d02b909fb19c2e38916609f04ccb04787f9348c87727cdd5af6585a327d56"
+  },
+  {
+    "input_id": "pipes_2x3_tile_seed42",
+    "puzzle_type": "pipes",
+    "rows": 2,
+    "cols": 3,
+    "seed": 42,
+    "generator": "tile",
+    "initial_state": [
+      [
+        4,
+        2,
+        6
+      ],
+      [
+        9,
+        10,
+        3
+      ]
+    ],
+    "generated_solution": [
+      [
+        2,
+        4,
+        3
+      ],
+      [
+        12,
+        5,
+        9
+      ]
+    ],
+    "generation_attempts": 2,
+    "rejected_invalid_attempts": 1,
+    "validation_status": "PASS",
+    "validation_reason": "Initial state is unsolved and the generator's solution passes PipesProblem.is_goal().",
+    "input_hash": "8d0695703b6fab9bae3b8a95d14bab4766f8f306e3c2fd45cc6c55a95827802a"
+  },
+  {
+    "input_id": "pipes_2x3_tile_seed43",
+    "puzzle_type": "pipes",
+    "rows": 2,
+    "cols": 3,
+    "seed": 43,
+    "generator": "tile",
+    "initial_state": [
+      [
+        3,
+        13,
+        8
+      ],
+      [
+        1,
+        3,
+        4
+      ]
+    ],
+    "generated_solution": [
+      [
+        6,
+        7,
+        1
+      ],
+      [
+        8,
+        12,
+        1
+      ]
+    ],
+    "generation_attempts": 1,
+    "rejected_invalid_attempts": 0,
+    "validation_status": "PASS",
+    "validation_reason": "Initial state is unsolved and the generator's solution passes PipesProblem.is_goal().",
+    "input_hash": "abf14069c83533eb10628af35c752a8597a15162b788119386ea65cf181ee758"
+  },
+  {
+    "input_id": "minesweeper_5x5_mines3_seed42",
+    "puzzle_type": "minesweeper",
+    "rows": 5,
+    "cols": 5,
+    "seed": 42,
+    "generator": "default",
+    "mine_count": 3,
+    "initial_state": [
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      -1,
+      1,
+      0,
+      0,
+      0
+    ],
+    "mines": [
+      0,
+      3,
+      20
+    ],
+    "generation_attempts": 1,
+    "rejected_invalid_attempts": 0,
+    "validation_status": "PASS",
+    "validation_reason": "Mine count, public state shape, and initial non-goal state were validated.",
+    "input_hash": "99de3f66aa1db0cde524c4c5f5f9f9f1032041d171ebcd22a6db805fe79cd6ba"
+  },
+  {
+    "input_id": "minesweeper_5x5_mines3_seed43",
+    "puzzle_type": "minesweeper",
+    "rows": 5,
+    "cols": 5,
+    "seed": 43,
+    "generator": "default",
+    "mine_count": 3,
+    "initial_state": [
+      -1,
+      -1,
+      -1,
+      -1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      -1,
+      0,
+      0,
+      0,
+      1,
+      -1,
+      0,
+      1,
+      1,
+      1,
+      -1,
+      0,
+      1,
+      -1,
+      -1,
+      -1
+    ],
+    "mines": [
+      1,
+      9,
+      22
+    ],
+    "generation_attempts": 1,
+    "rejected_invalid_attempts": 0,
+    "validation_status": "PASS",
+    "validation_reason": "Mine count, public state shape, and initial non-goal state were validated.",
+    "input_hash": "713b4ed6e8929c4a26d4d69d50716cc16d315469de1b70bdc65d54931556deeb"
+  }
+]
