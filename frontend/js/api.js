@@ -34,12 +34,12 @@ export async function generatePuzzle(puzzle) {
 }
 
 
-export async function solvePuzzle(puzzle, state, algorithm) {
+export async function solvePuzzle(puzzle, puzzleId, algorithm) {
     return request(`/${puzzle}/solve`, {
         method: "POST",
 
         body: JSON.stringify({
-            state: state,
+            puzzle_id: puzzleId,
             algorithm: algorithm
         })
     });
