@@ -7,6 +7,7 @@
 
     <title>AI Search - Pipes & Minesweeper</title>
 
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="css/style.css">
 </head>
 
@@ -28,7 +29,28 @@
     <br>
 
     <!-- Puzzle controls -->
-    <div>
+    <div id="configuration-controls">
+        <label for="generator-select">
+            Generator:
+        </label>
+
+        <select id="generator-select">
+            <option value="tree">Tree-first</option>
+            <option value="tile">Tile-driven</option>
+        </select>
+
+        <label for="solver-select">
+            Mode / Solver:
+        </label>
+
+        <select id="solver-select">
+            <option value="dfs">DFS</option>
+            <option value="human">Human</option>
+            <option value="astar" disabled>
+                A* (not available)
+            </option>
+        </select>
+
         <button id="new-puzzle-button">
             New Puzzle
         </button>
@@ -70,9 +92,20 @@
         Select a puzzle
     </h2>
 
+    <p id="puzzle-state">
+        State: -
+    </p>
+
     <!-- Puzzle board -->
     <div id="board">
     </div>
+
+    <section id="move-history-section">
+        <h3>Move History</h3>
+
+        <ol id="move-history">
+        </ol>
+    </section>
 
     <br>
 
@@ -88,13 +121,23 @@
         </p>
 
         <p>
-            Steps:
+            Total actions:
             <span id="steps">-</span>
         </p>
 
         <p>
-            Time:
+            Generation time:
+            <span id="generation-time">-</span>
+        </p>
+
+        <p>
+            Solver time:
             <span id="time">-</span>
+        </p>
+
+        <p>
+            Expanded nodes:
+            <span id="expanded-nodes">-</span>
         </p>
     </div>
 

@@ -1,12 +1,11 @@
 import {
     getStatus,
     generatePuzzle,
-    solvePuzzle
+    solvePuzzle,
+    rotatePipes
 } from "./api.js";
 
-import {
-    renderBoard
-} from "./renderer.js";
+import { renderBoard } from "./renderer.js";
 
 import {
     setSolution,
@@ -17,6 +16,8 @@ import {
     isPlaying,
     nextStep,
     previousStep,
+    goToStep,
+    branchHistory,
     play,
     pause
 } from "./playback.js";
@@ -25,9 +26,15 @@ import {
 let currentPuzzle = null;
 let currentPuzzleId = null;
 let currentState = null;
+let currentPlaybackStates = [];
+let currentPlaybackActions = [];
+let goalStep = null;
 let generationRequestId = 0;
 let solveRequestId = 0;
+let humanActionRequestId = 0;
 let playbackLocked = false;
+let humanStartedAt = null;
+let selectedHistoryButton = null;
 
 
 // ============================================================
@@ -35,15 +42,17 @@ let playbackLocked = false;
 // ============================================================
 
 const puzzleName = document.getElementById("puzzle-name");
+const puzzleState = document.getElementById("puzzle-state");
 const status = document.getElementById("status");
-
 const algorithm = document.getElementById("algorithm");
 const steps = document.getElementById("steps");
-const time = document.getElementById("time");
-
+const generationTime = document.getElementById("generation-time");
+const solverTime = document.getElementById("time");
+const expandedNodes = document.getElementById("expanded-nodes");
+const generatorSelect = document.getElementById("generator-select");
+const solverSelect = document.getElementById("solver-select");
 const pipesButton = document.getElementById("pipes-button");
 const minesweeperButton = document.getElementById("minesweeper-button");
-
 const newPuzzleButton = document.getElementById("new-puzzle-button");
 const solveInstantlyButton = document.getElementById("solve-instantly-button");
 const solveStepButton = document.getElementById("solve-step-button");
@@ -52,60 +61,57 @@ const nextStepButton = document.getElementById("next-step-button");
 const playButton = document.getElementById("play-button");
 const pauseButton = document.getElementById("pause-button");
 const playbackStep = document.getElementById("playback-step");
+const moveHistory = document.getElementById("move-history");
 
 
 // ============================================================
-// Puzzle selection
+// Shared state and controls
 // ============================================================
 
-pipesButton.addEventListener("click", () => {
-    selectPuzzle("pipes");
-});
-
-
-minesweeperButton.addEventListener("click", () => {
-    selectPuzzle("minesweeper");
-});
-
-
-function selectPuzzle(puzzle) {
-    currentPuzzle = puzzle;
-    resetPuzzleData();
-
-    puzzleName.textContent =
-        puzzle === "pipes"
-            ? "Pipes"
-            : "Minesweeper";
-
-    status.textContent =
-        "Puzzle selected. Generate a puzzle.";
+function formatMilliseconds(seconds) {
+    return typeof seconds === "number"
+        ? `${(seconds * 1000).toFixed(3)} ms`
+        : "-";
 }
 
 
-function resetPuzzleData() {
-    generationRequestId++;
-    solveRequestId++;
-    currentPuzzleId = null;
-    currentState = null;
-    playbackLocked = false;
-    solveInstantlyButton.disabled = false;
-    solveStepButton.disabled = false;
-
-    setSolution([]);
-    updatePlaybackControls();
-    renderBoard(null, handleCellClick);
-
-    algorithm.textContent = "-";
-    steps.textContent = "-";
-    time.textContent = "-";
+function isHumanMode() {
+    return currentPuzzle === "pipes" && solverSelect.value === "human";
 }
 
 
-function setSolving(isSolving) {
-    playbackLocked = isSolving;
-    solveInstantlyButton.disabled = isSolving;
-    solveStepButton.disabled = isSolving;
-    updatePlaybackControls();
+function isCurrentStateSolved() {
+    return goalStep !== null && getCurrentStep() === goalStep;
+}
+
+
+function renderCurrentBoard() {
+    renderBoard(currentState, handleCellClick, {
+        puzzleType: currentPuzzle ?? "pipes",
+        interactive: Boolean(
+            currentState
+            && currentPuzzleId
+            && isHumanMode()
+            && !playbackLocked
+            && !isPlaying()
+        ),
+        solved: isCurrentStateSolved()
+    });
+}
+
+
+function updatePuzzleState() {
+    if (!currentState) {
+        puzzleState.textContent = "State: -";
+    } else if (isCurrentStateSolved()) {
+        puzzleState.textContent = "State: solved";
+    } else if (currentPuzzle === "minesweeper") {
+        puzzleState.textContent = "State: generated (solver unavailable)";
+    } else if (isHumanMode()) {
+        puzzleState.textContent = "State: human solution in progress";
+    } else {
+        puzzleState.textContent = "State: unsolved / reviewing solution";
+    }
 }
 
 
@@ -114,47 +120,71 @@ function updatePlaybackControls() {
     const currentStep = getCurrentStep();
     const totalSteps = getTotalSteps();
     const autoPlaying = isPlaying();
+    const dfsAvailable = Boolean(
+        currentPuzzle === "pipes"
+        && currentPuzzleId
+        && solverSelect.value === "dfs"
+    );
 
     playbackStep.textContent = solutionAvailable
         ? `Step ${currentStep} / ${totalSteps}`
         : "Step - / -";
 
     previousStepButton.disabled =
-        playbackLocked
-        || autoPlaying
-        || !solutionAvailable
-        || currentStep === 0;
-
+        playbackLocked || autoPlaying || !solutionAvailable || currentStep === 0;
     nextStepButton.disabled =
-        playbackLocked
-        || autoPlaying
-        || !solutionAvailable
-        || currentStep === totalSteps;
-
+        playbackLocked || autoPlaying || !solutionAvailable || currentStep === totalSteps;
     playButton.disabled =
-        playbackLocked
-        || autoPlaying
-        || !solutionAvailable
-        || currentStep === totalSteps;
+        playbackLocked || autoPlaying || !solutionAvailable || currentStep === totalSteps;
+    pauseButton.disabled = playbackLocked || !autoPlaying;
+    solveInstantlyButton.disabled = playbackLocked || autoPlaying || !dfsAvailable;
+    solveStepButton.disabled = playbackLocked || autoPlaying || !dfsAvailable;
+    newPuzzleButton.disabled = playbackLocked;
+    generatorSelect.disabled = playbackLocked || currentPuzzle !== "pipes";
+    solverSelect.disabled = playbackLocked || currentPuzzle !== "pipes";
 
-    pauseButton.disabled =
-        playbackLocked
-        || !autoPlaying;
+    moveHistory.classList.toggle("is-locked", playbackLocked || autoPlaying);
+    updateMoveHistorySelection();
+    updatePuzzleState();
+}
 
-    solveInstantlyButton.disabled =
-        playbackLocked
-        || autoPlaying;
 
-    solveStepButton.disabled =
-        playbackLocked
-        || autoPlaying;
+function setBusy(isBusy) {
+    playbackLocked = isBusy;
+    updatePlaybackControls();
+    renderCurrentBoard();
+}
+
+
+function resetPuzzleData() {
+    generationRequestId++;
+    solveRequestId++;
+    humanActionRequestId++;
+    pause();
+    currentPuzzleId = null;
+    currentState = null;
+    currentPlaybackStates = [];
+    currentPlaybackActions = [];
+    goalStep = null;
+    humanStartedAt = null;
+    playbackLocked = false;
+    setSolution([]);
+    clearMoveHistory();
+    algorithm.textContent = "-";
+    steps.textContent = "-";
+    generationTime.textContent = "-";
+    solverTime.textContent = "-";
+    expandedNodes.textContent = "-";
+    renderCurrentBoard();
+    updatePlaybackControls();
 }
 
 
 function showPlaybackState(state, step, totalSteps) {
     currentState = state;
-    renderBoard(state, handleCellClick);
+    renderCurrentBoard();
     playbackStep.textContent = `Step ${step} / ${totalSteps}`;
+    updatePuzzleState();
 }
 
 
@@ -164,11 +194,25 @@ function statesAreEqual(firstState, secondState) {
 
 
 // ============================================================
-// Generate puzzle
+// Puzzle selection and generation
 // ============================================================
 
-newPuzzleButton.addEventListener("click", async () => {
+pipesButton.addEventListener("click", () => selectPuzzle("pipes"));
+minesweeperButton.addEventListener("click", () => selectPuzzle("minesweeper"));
 
+
+function selectPuzzle(puzzle) {
+    currentPuzzle = puzzle;
+    resetPuzzleData();
+    puzzleName.textContent = puzzle === "pipes" ? "Pipes" : "Minesweeper";
+    status.textContent = puzzle === "pipes"
+        ? "Puzzle selected. Generate a puzzle."
+        : "Minesweeper generation is available; its solver is not ready.";
+    updatePlaybackControls();
+}
+
+
+newPuzzleButton.addEventListener("click", async () => {
     if (!currentPuzzle) {
         status.textContent = "Please select a puzzle first.";
         return;
@@ -177,303 +221,342 @@ newPuzzleButton.addEventListener("click", async () => {
     resetPuzzleData();
     const requestId = generationRequestId;
     const requestedPuzzle = currentPuzzle;
+    setBusy(true);
 
     try {
         status.textContent = "Generating puzzle...";
+        const options = requestedPuzzle === "pipes"
+            ? { rows: 2, cols: 2, generator: generatorSelect.value }
+            : { rows: 5, cols: 5, mine_count: 3 };
+        const result = await generatePuzzle(requestedPuzzle, options);
 
-        const result =
-            await generatePuzzle(requestedPuzzle);
-
-        if (
-            requestId !== generationRequestId
-            || requestedPuzzle !== currentPuzzle
-        ) {
+        if (requestId !== generationRequestId || requestedPuzzle !== currentPuzzle) {
             return;
         }
 
         currentPuzzleId = result.puzzle_id;
         currentState = result.state;
-
-        renderBoard(
-            result.state,
-            handleCellClick
+        generationTime.textContent = formatMilliseconds(
+            result.generation_time_seconds
         );
 
-        status.textContent = "Puzzle generated.";
-
-    } catch (error) {
-
-        if (requestId !== generationRequestId) {
-            return;
+        if (isHumanMode()) {
+            currentPlaybackStates = [currentState];
+            setSolution(currentPlaybackStates);
+            renderMoveHistory([], 1);
         }
 
-        status.textContent =
-            "Could not generate puzzle: " + error.message;
+        status.textContent = requestedPuzzle === "pipes"
+            ? `Puzzle generated with the ${result.generator} generator.`
+            : "Minesweeper generated. Its hidden mine map remains on the backend.";
+    } catch (error) {
+        if (requestId === generationRequestId) {
+            status.textContent = "Could not generate puzzle: " + error.message;
+        }
+    } finally {
+        if (requestId === generationRequestId) {
+            setBusy(false);
+        }
     }
 });
 
 
 // ============================================================
-// Human interaction
+// Move history
 // ============================================================
 
-function handleCellClick(row, col) {
+function clearMoveHistory() {
+    moveHistory.innerHTML = "";
+    selectedHistoryButton = null;
+}
 
-    if (!currentPuzzle) {
-        return;
+
+function describeAction(action, step) {
+    if (!action) {
+        return `Step ${step}: unknown action`;
     }
 
-    /*
-     * Later:
-     *
-     * This will modify the current puzzle state.
-     *
-     * Pipes:
-     *     rotate tile
-     *
-     * Minesweeper:
-     *     reveal / flag cell
-     */
+    if (Number.isInteger(action.tile_index) && Number.isInteger(action.turns)) {
+        const columnCount = currentPlaybackStates[0]?.[0]?.length ?? 1;
+        const row = Math.floor(action.tile_index / columnCount) + 1;
+        const column = action.tile_index % columnCount + 1;
+        const suffix = action.turns === 1 ? "quarter-turn" : "quarter-turns";
+        return `Step ${step}: rotate row ${row}, column ${column} — ${action.turns} ${suffix}`;
+    }
 
-    console.log(
-        "Clicked:",
-        currentPuzzle,
-        row,
-        col
+    return `Step ${step}: action`;
+}
+
+
+function renderMoveHistory(actions, stateCount) {
+    clearMoveHistory();
+
+    for (let step = 0; step < stateCount; step++) {
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+        button.className = "history-step";
+        button.dataset.step = step;
+        button.textContent = step === 0
+            ? "Step 0: Initial State"
+            : describeAction(actions[step - 1], step);
+
+        button.addEventListener("click", () => {
+            if (playbackLocked || isPlaying()) {
+                return;
+            }
+            if (goToStep(step, showPlaybackState)) {
+                updatePlaybackControls();
+                status.textContent = `Viewing step ${step}.`;
+            }
+        });
+
+        item.appendChild(button);
+        moveHistory.appendChild(item);
+    }
+
+    updateMoveHistorySelection();
+}
+
+
+function updateMoveHistorySelection() {
+    const currentButton = moveHistory.querySelector(
+        `[data-step="${getCurrentStep()}"]`
     );
+
+    if (currentButton === selectedHistoryButton) {
+        return;
+    }
+    if (selectedHistoryButton) {
+        selectedHistoryButton.classList.remove("selected");
+        selectedHistoryButton.removeAttribute("aria-current");
+    }
+    selectedHistoryButton = currentButton;
+    if (selectedHistoryButton) {
+        selectedHistoryButton.classList.add("selected");
+        selectedHistoryButton.setAttribute("aria-current", "step");
+        selectedHistoryButton.scrollIntoView({ block: "nearest" });
+    }
 }
 
 
 // ============================================================
-// Solve instantly
+// Human Pipes mode
 // ============================================================
 
-solveInstantlyButton.addEventListener("click", async () => {
-
-    if (!currentPuzzle) {
-        status.textContent = "Please select a puzzle first.";
-        return;
+solverSelect.addEventListener("change", () => {
+    if (isHumanMode() && currentState && !hasSolution()) {
+        currentPlaybackStates = [currentState];
+        currentPlaybackActions = [];
+        setSolution(currentPlaybackStates);
+        renderMoveHistory([], 1);
     }
-
-    if (!currentPuzzleId) {
-        status.textContent = "Please generate a puzzle first.";
-        return;
-    }
-
-    if (currentPuzzle !== "pipes") {
-        status.textContent =
-            "Solve Instantly is currently available for Pipes only.";
-        return;
-    }
-
-    const requestId = ++solveRequestId;
-    const requestedPuzzle = currentPuzzle;
-    const requestedPuzzleId = currentPuzzleId;
-    setSolving(true);
-
-    try {
-        status.textContent = "Solving...";
-
-        const result =
-            await solvePuzzle(
-                requestedPuzzle,
-                requestedPuzzleId,
-                "dfs"
-            );
-
-        if (
-            requestId !== solveRequestId
-            || requestedPuzzle !== currentPuzzle
-            || requestedPuzzleId !== currentPuzzleId
-        ) {
-            return;
-        }
-
-        algorithm.textContent =
-            result.algorithm ?? "-";
-
-        steps.textContent =
-            result.steps ?? "-";
-
-        time.textContent =
-            typeof result.execution_time_seconds === "number"
-                ? `${(result.execution_time_seconds * 1000).toFixed(3)} ms`
-                : "-";
-
-        if (!result.solution_found) {
-            setSolution([]);
-            updatePlaybackControls();
-            status.textContent = "No solution found.";
-            return;
-        }
-
-        const finalState =
-            result.states[result.states.length - 1];
-
-        setSolution(result.states, result.states.length - 1);
-        currentState = finalState;
-        renderBoard(finalState, handleCellClick);
-        updatePlaybackControls();
-
-        status.textContent = "Solved.";
-
-    } catch (error) {
-
-        if (requestId !== solveRequestId) {
-            return;
-        }
-
-        status.textContent =
-            "Could not solve puzzle: " + error.message;
-
-    } finally {
-
-        if (requestId === solveRequestId) {
-            setSolving(false);
-        }
-    }
+    renderCurrentBoard();
+    updatePlaybackControls();
+    status.textContent = isHumanMode()
+        ? "Human mode selected. Click a pipe to rotate it."
+        : "DFS selected. The current puzzle has been preserved.";
 });
 
 
-// ============================================================
-// Solve step by step
-// ============================================================
-
-solveStepButton.addEventListener("click", async () => {
-
-    if (!currentPuzzle) {
-        status.textContent = "Please select a puzzle first.";
+async function handleCellClick(row, col) {
+    if (!isHumanMode() || !currentPuzzleId || playbackLocked || isPlaying()) {
         return;
     }
 
-    if (!currentPuzzleId) {
-        status.textContent = "Please generate a puzzle first.";
-        return;
-    }
-
-    if (currentPuzzle !== "pipes") {
-        status.textContent =
-            "Step-by-step solving is currently available for Pipes only.";
-        return;
-    }
-
-    const requestId = ++solveRequestId;
-    const requestedPuzzle = currentPuzzle;
+    const requestId = ++humanActionRequestId;
     const requestedPuzzleId = currentPuzzleId;
-    setSolving(true);
+    const columnCount = currentState[0].length;
+    const tileIndex = row * columnCount + col;
+    const stateBeforeAction = currentState;
+
+    if (humanStartedAt === null) {
+        humanStartedAt = performance.now();
+    }
+    setBusy(true);
+    status.textContent = "Checking rotation with the backend...";
 
     try {
-        status.textContent = "Calculating solution...";
-
-        const result =
-            await solvePuzzle(
-                requestedPuzzle,
-                requestedPuzzleId,
-                "dfs"
-            );
-
-        if (
-            requestId !== solveRequestId
-            || requestedPuzzle !== currentPuzzle
-            || requestedPuzzleId !== currentPuzzleId
-        ) {
-            return;
-        }
-
-        algorithm.textContent =
-            result.algorithm ?? "-";
-
-        steps.textContent =
-            result.steps ?? "-";
-
-        time.textContent =
-            typeof result.execution_time_seconds === "number"
-                ? `${(result.execution_time_seconds * 1000).toFixed(3)} ms`
-                : "-";
-
-        if (!result.solution_found) {
-            setSolution([]);
-            updatePlaybackControls();
-            status.textContent = "No solution found.";
-            return;
-        }
-
-        const finalStep = result.states.length - 1;
-        const startStep = statesAreEqual(
-            currentState,
-            result.states[finalStep]
-        )
-            ? finalStep
-            : 0;
-
-        setSolution(result.states, startStep);
-        showPlaybackState(
-            getCurrentState(),
-            getCurrentStep(),
-            getTotalSteps()
+        const result = await rotatePipes(
+            requestedPuzzleId,
+            stateBeforeAction,
+            tileIndex
         );
-        updatePlaybackControls();
 
-        status.textContent = startStep === finalStep
-            ? "Solution ready. Use Previous to review it."
-            : "Solution ready. Use Next and Previous.";
-
-    } catch (error) {
-
-        if (requestId !== solveRequestId) {
+        if (
+            requestId !== humanActionRequestId
+            || requestedPuzzleId !== currentPuzzleId
+            || currentPuzzle !== "pipes"
+        ) {
             return;
         }
 
-        status.textContent =
-            "Could not calculate solution: " + error.message;
+        const branchStep = hasSolution() ? getCurrentStep() : 0;
+        const history = branchHistory(
+            hasSolution() ? currentPlaybackStates : [stateBeforeAction],
+            hasSolution() ? currentPlaybackActions : [],
+            branchStep,
+            result.state,
+            result.action
+        );
+        currentPlaybackStates = history.states;
+        currentPlaybackActions = history.actions;
+        goalStep = result.is_goal ? currentPlaybackStates.length - 1 : null;
+        setSolution(currentPlaybackStates, currentPlaybackStates.length - 1);
+        currentState = result.state;
+        renderMoveHistory(currentPlaybackActions, currentPlaybackStates.length);
 
+        algorithm.textContent = "human";
+        steps.textContent = currentPlaybackActions.length;
+        solverTime.textContent = `${(performance.now() - humanStartedAt).toFixed(1)} ms`;
+        expandedNodes.textContent = "not applicable";
+        status.textContent = result.is_goal
+            ? "Solved in Human mode."
+            : "Pipe rotated. Continue solving.";
+    } catch (error) {
+        if (requestId === humanActionRequestId) {
+            status.textContent = "Could not rotate pipe: " + error.message;
+        }
     } finally {
-
-        if (requestId === solveRequestId) {
-            setSolving(false);
+        if (requestId === humanActionRequestId) {
+            setBusy(false);
         }
     }
-});
+}
 
+
+// ============================================================
+// DFS solving
+// ============================================================
+
+function validateSolveRequest() {
+    if (!currentPuzzle) {
+        status.textContent = "Please select a puzzle first.";
+        return false;
+    }
+    if (!currentPuzzleId) {
+        status.textContent = "Please generate a puzzle first.";
+        return false;
+    }
+    if (currentPuzzle !== "pipes" || solverSelect.value !== "dfs") {
+        status.textContent = "DFS solving is currently available for Pipes only.";
+        return false;
+    }
+    return true;
+}
+
+
+function applySolveStatistics(result) {
+    algorithm.textContent = result.algorithm ?? "-";
+    steps.textContent = result.steps ?? "-";
+    solverTime.textContent = formatMilliseconds(result.execution_time_seconds);
+    expandedNodes.textContent = result.expanded_nodes ?? "not available";
+}
+
+
+async function runDfs(startAtFinalState) {
+    if (!validateSolveRequest()) {
+        return;
+    }
+
+    const requestId = ++solveRequestId;
+    const requestedPuzzle = currentPuzzle;
+    const requestedPuzzleId = currentPuzzleId;
+    const requestedState = currentState;
+    setBusy(true);
+    status.textContent = startAtFinalState ? "Solving..." : "Calculating solution...";
+
+    try {
+        const result = await solvePuzzle(
+            requestedPuzzle,
+            requestedPuzzleId,
+            "dfs",
+            requestedState
+        );
+
+        if (
+            requestId !== solveRequestId
+            || requestedPuzzle !== currentPuzzle
+            || requestedPuzzleId !== currentPuzzleId
+        ) {
+            return;
+        }
+
+        applySolveStatistics(result);
+        if (!result.solution_found) {
+            currentPlaybackStates = [];
+            currentPlaybackActions = [];
+            goalStep = null;
+            setSolution([]);
+            clearMoveHistory();
+            status.textContent = "No solution found.";
+            return;
+        }
+
+        currentPlaybackStates = result.states;
+        currentPlaybackActions = result.actions;
+        goalStep = result.states.length - 1;
+        let initialStep = startAtFinalState ? goalStep : 0;
+        if (!startAtFinalState && statesAreEqual(currentState, result.states[goalStep])) {
+            initialStep = goalStep;
+        }
+        setSolution(currentPlaybackStates, initialStep);
+        renderMoveHistory(currentPlaybackActions, currentPlaybackStates.length);
+        showPlaybackState(getCurrentState(), getCurrentStep(), getTotalSteps());
+        status.textContent = initialStep === goalStep
+            ? "Solved. Use Previous to review the path."
+            : "Solution ready. Use Next, Previous, or Play.";
+    } catch (error) {
+        if (requestId === solveRequestId) {
+            status.textContent = "Could not solve puzzle: " + error.message;
+        }
+    } finally {
+        if (requestId === solveRequestId) {
+            setBusy(false);
+        }
+    }
+}
+
+
+solveInstantlyButton.addEventListener("click", () => runDfs(true));
+solveStepButton.addEventListener("click", () => runDfs(false));
+
+
+// ============================================================
+// Playback
+// ============================================================
 
 nextStepButton.addEventListener("click", () => {
     nextStep(showPlaybackState);
     updatePlaybackControls();
 });
 
-
 previousStepButton.addEventListener("click", () => {
     previousStep(showPlaybackState);
     updatePlaybackControls();
 });
 
-
 playButton.addEventListener("click", async () => {
-    const playbackPromise = play(
-        (state, step, totalSteps) => {
-            showPlaybackState(state, step, totalSteps);
-            updatePlaybackControls();
-        }
-    );
-
+    const playbackPromise = play((state, step, totalSteps) => {
+        showPlaybackState(state, step, totalSteps);
+        updatePlaybackControls();
+    });
     updatePlaybackControls();
+    renderCurrentBoard();
     status.textContent = "Playing solution...";
-
     const reachedEnd = await playbackPromise;
     updatePlaybackControls();
-
+    renderCurrentBoard();
     if (reachedEnd) {
         status.textContent = "Playback complete.";
     }
 });
 
-
 pauseButton.addEventListener("click", () => {
     if (pause()) {
         status.textContent = "Playback paused.";
     }
-
     updatePlaybackControls();
+    renderCurrentBoard();
 });
 
 
@@ -482,24 +565,15 @@ pauseButton.addEventListener("click", () => {
 // ============================================================
 
 async function checkBackend() {
-
     try {
-
         const result = await getStatus();
-
-        console.log(
-            "Backend:",
-            result.status
-        );
-
+        console.log("Backend:", result.status);
     } catch (error) {
-
-        status.textContent =
-            "Backend is not running.";
-
+        status.textContent = "Backend is not running.";
         console.error(error);
     }
 }
 
 
+updatePlaybackControls();
 checkBackend();

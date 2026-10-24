@@ -77,6 +77,58 @@ export function previousStep(callback) {
 }
 
 
+export function goToStep(index, callback) {
+    if (
+        playing
+        || !Number.isInteger(index)
+        || index < 0
+        || index >= states.length
+    ) {
+        return false;
+    }
+
+    currentStep = index;
+
+    callback(
+        states[currentStep],
+        currentStep,
+        getTotalSteps()
+    );
+
+    return true;
+}
+
+
+export function branchHistory(
+    historyStates,
+    historyActions,
+    branchStep,
+    nextState,
+    nextAction
+) {
+    if (
+        !Array.isArray(historyStates)
+        || !Array.isArray(historyActions)
+        || !Number.isInteger(branchStep)
+        || branchStep < 0
+        || branchStep >= historyStates.length
+    ) {
+        throw new Error("Invalid playback branch.");
+    }
+
+    return {
+        states: [
+            ...historyStates.slice(0, branchStep + 1),
+            nextState
+        ],
+        actions: [
+            ...historyActions.slice(0, branchStep),
+            nextAction
+        ]
+    };
+}
+
+
 function waitForDelay(delay) {
     return new Promise(resolve => {
         const timerId = setTimeout(() => {

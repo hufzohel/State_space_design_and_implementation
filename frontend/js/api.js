@@ -27,20 +27,46 @@ export async function getStatus() {
 }
 
 
-export async function generatePuzzle(puzzle) {
+export async function generatePuzzle(puzzle, options = {}) {
     return request(`/${puzzle}/new`, {
-        method: "POST"
+        method: "POST",
+        body: JSON.stringify(options)
     });
 }
 
 
-export async function solvePuzzle(puzzle, puzzleId, algorithm) {
+export async function solvePuzzle(
+    puzzle,
+    puzzleId,
+    algorithm,
+    state = null
+) {
     return request(`/${puzzle}/solve`, {
         method: "POST",
 
         body: JSON.stringify({
             puzzle_id: puzzleId,
-            algorithm: algorithm
+            algorithm: algorithm,
+            state: state
+        })
+    });
+}
+
+
+export async function rotatePipes(
+    puzzleId,
+    state,
+    tileIndex,
+    turns = 1
+) {
+    return request("/pipes/rotate", {
+        method: "POST",
+
+        body: JSON.stringify({
+            puzzle_id: puzzleId,
+            state: state,
+            tile_index: tileIndex,
+            turns: turns
         })
     });
 }

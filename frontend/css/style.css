@@ -9,6 +9,23 @@ button {
     cursor: pointer;
 }
 
+button:disabled {
+    cursor: not-allowed;
+}
+
+select {
+    margin: 5px;
+    padding: 7px;
+}
+
+#configuration-controls,
+#playback-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
 #board {
     display: grid;
     grid-template-columns: repeat(5, 50px);
@@ -22,9 +39,143 @@ button {
 }
 
 #board .cell {
+    position: relative;
     width: 50px;
     height: 50px;
     margin: 0;
     padding: 0;
     border: 1px solid black;
+    overflow: hidden;
+    background: #f8fafc;
+}
+
+#board.interactive .cell:hover {
+    background: #e0f2fe;
+}
+
+.pipe-center,
+.pipe-arm {
+    position: absolute;
+    display: block;
+    background: #2563eb;
+    pointer-events: none;
+}
+
+.pipe-center {
+    top: 18px;
+    left: 18px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+}
+
+.pipe-up,
+.pipe-down {
+    left: 20px;
+    width: 10px;
+    height: 25px;
+}
+
+.pipe-up {
+    top: 0;
+}
+
+.pipe-down {
+    top: 25px;
+}
+
+.pipe-left,
+.pipe-right {
+    top: 20px;
+    width: 25px;
+    height: 10px;
+}
+
+.pipe-left {
+    left: 0;
+}
+
+.pipe-right {
+    left: 25px;
+}
+
+.pipe-cell.invalid {
+    box-shadow: inset 0 0 0 3px #ef4444;
+    background: #fff1f2;
+}
+
+.pipe-cell.loop {
+    outline: 3px solid #f59e0b;
+    outline-offset: -5px;
+}
+
+#board.solved .pipe-cell {
+    background: #ecfdf5;
+    box-shadow: inset 0 0 0 2px #16a34a;
+}
+
+#board.solved .pipe-center,
+#board.solved .pipe-arm {
+    background: #16a34a;
+}
+
+.minesweeper-cell {
+    color: #0f172a;
+    font-weight: bold;
+}
+
+.minesweeper-cell.unknown {
+    background: #cbd5e1;
+}
+
+.minesweeper-cell.revealed {
+    background: #f8fafc;
+}
+
+.minesweeper-cell.flagged {
+    color: #dc2626;
+    background: #fef2f2;
+}
+
+#move-history {
+    width: 300px;
+    max-height: 240px;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    border: 1px solid #bbb;
+    list-style: none;
+}
+
+#move-history-section {
+    margin-top: 16px;
+}
+
+#move-history:empty::before {
+    display: block;
+    padding: 10px;
+    color: #666;
+    content: "No solution history.";
+}
+
+#move-history li + li {
+    border-top: 1px solid #ddd;
+}
+
+.history-step {
+    width: 100%;
+    margin: 0;
+    border: 0;
+    background: white;
+    text-align: left;
+}
+
+.history-step.selected {
+    background: #dbeafe;
+    font-weight: bold;
+}
+
+#move-history.is-locked .history-step {
+    cursor: not-allowed;
+    opacity: 0.6;
 }
