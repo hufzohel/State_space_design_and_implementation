@@ -1,84 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>AI Search - Pipes & Minesweeper</title>
-
+    <title>AI Search – Pipes & Minesweeper</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-
 <body>
 
+<header class="bar">
     <h1>AI Search</h1>
+    <nav class="tabs" role="tablist" aria-label="Puzzle">
+        <button role="tab" data-puzzle="pipes" aria-selected="true">Pipes</button>
+        <button role="tab" data-puzzle="minesweeper" aria-selected="false">Minesweeper</button>
+    </nav>
+    <label class="muted"><input type="checkbox" id="mock-toggle"> Mock mode (offline demo)</label>
+</header>
 
-    <!-- Puzzle selection -->
-    <div>
-        <button id="pipes-button">
-            Pipes
-        </button>
+<main>
+    <section aria-label="Puzzle">
+        <p id="status" role="status" data-kind="info">Loading…</p>
+        <div id="board"></div>
+        <p id="hint" class="muted"></p>
+        <label id="flag-mode-label" class="muted" hidden>
+            <input type="checkbox" id="flag-mode"> Flag mode (for touch screens)
+        </label>
+    </section>
 
-        <button id="minesweeper-button">
-            Minesweeper
-        </button>
-    </div>
+    <aside>
+        <section class="panel">
+            <h2>Puzzle</h2>
+            <div class="row">
+                <select id="generator" aria-label="Generator"></select>
+                <button id="generate-button" class="primary">New puzzle</button>
+            </div>
+        </section>
 
-    <br>
+        <section class="panel">
+            <h2>Solver</h2>
+            <div class="row">
+                <select id="solver" aria-label="Solver"></select>
+                <button id="solve-button" class="primary">Solve</button>
+            </div>
+            <button id="restart-button">Restart</button>
+        </section>
 
-    <!-- Puzzle controls -->
-    <div>
-        <button id="new-puzzle-button">
-            New Puzzle
-        </button>
+        <section class="panel">
+            <h2>Stats</h2>
+            <dl class="stats">
+                <dt>Generation time</dt><dd id="stat-gen">–</dd>
+                <dt>Solving time</dt><dd id="stat-time">–</dd>
+                <dt>Steps</dt><dd id="stat-steps">–</dd>
+                <dt>Solved by</dt><dd id="stat-algo">–</dd>
+            </dl>
+        </section>
 
-        <button id="solve-instantly-button">
-            Solve Instantly
-        </button>
+        <section class="panel">
+            <h2>Moves</h2>
+            <div class="row nav">
+                <button id="first" aria-label="First step">|‹</button>
+                <button id="prev" aria-label="Previous step">‹</button>
+                <button id="play">Play</button>
+                <button id="next" aria-label="Next step">›</button>
+                <button id="last" aria-label="Last step">›|</button>
+                <select id="speed" aria-label="Playback speed">
+                    <option value="900">Slow</option>
+                    <option value="450" selected>Normal</option>
+                    <option value="150">Fast</option>
+                </select>
+            </div>
+            <ol id="history"></ol>
+        </section>
+    </aside>
+</main>
 
-        <button id="solve-step-button">
-            Solve Step by Step
-        </button>
-    </div>
-
-    <br>
-
-    <h2 id="puzzle-name">
-        Select a puzzle
-    </h2>
-
-    <!-- Puzzle board -->
-    <div id="board">
-    </div>
-
-    <br>
-
-    <!-- Status -->
-    <div>
-        <p id="status">
-            No puzzle selected.
-        </p>
-
-        <p>
-            Algorithm:
-            <span id="algorithm">-</span>
-        </p>
-
-        <p>
-            Steps:
-            <span id="steps">-</span>
-        </p>
-
-        <p>
-            Time:
-            <span id="time">-</span>
-        </p>
-    </div>
-
-
-    <script type="module" src="js/app.js"></script>
-
+<script type="module" src="js/app.js"></script>
 </body>
-
 </html>

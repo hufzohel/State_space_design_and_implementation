@@ -1,30 +1,321 @@
+:root {
+  --bg: #f3f4f6;
+  --surface: #fff;
+  --ink: #1d2433;
+  --muted: #68717f;
+  --line: #d9dde3;
+  --accent: #2f5fd0;
+  --good: #1e8449;
+  --bad: #c93a3a;
+  --pipe: #3d6f94;
+}
+* {
+  box-sizing: border-box;
+}
 body {
-    font-family: Arial, sans-serif;
-    margin: 30px;
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font:
+    15px/1.45 system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
 }
-
+button,
+select {
+  font: inherit;
+  color: inherit;
+}
 button {
-    margin: 5px;
-    padding: 8px 12px;
-    cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--surface);
+  min-width: 0;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.muted {
+  color: var(--muted);
+  font-size: 13px;
 }
 
+/* Layout */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.bar h1 {
+  margin: 0;
+  font-size: 17px;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+.tabs button {
+  border: 0;
+  background: none;
+}
+.tabs [aria-selected="true"] {
+  background: var(--ink);
+  color: #fff;
+}
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  max-width: 1280px;
+  margin: 20px auto;
+  padding: 0 20px;
+}
+main > section[aria-label="Puzzle"] {
+  container-type: inline-size;
+} /* lets the board size itself to this column (cqw) */
+@media (max-width: 760px) {
+  main {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Status banner */
+#status {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+#status[data-kind="win"] {
+  background: #e6f4ec;
+  border-color: var(--good);
+  color: var(--good);
+}
+#status[data-kind="lose"],
+#status[data-kind="error"] {
+  background: #fbe9e9;
+  border-color: var(--bad);
+  color: var(--bad);
+}
+#status[data-kind="warn"] {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+/* Board */
+/* The board grows to fill the column AND the window height, capped by --max. */
 #board {
-    display: grid;
-    grid-template-columns: repeat(5, 50px);
-    width: fit-content;
+  --gap: 2px;
+  --max: 110px;
+  --size: max(
+    28px,
+    min(
+      var(--max),
+      calc((100cqw - 4px - var(--gap) * (var(--cols, 1) - 1)) / var(--cols, 1)),
+      calc(
+        (100dvh - 250px - var(--gap) * (var(--rows, 1) - 1)) / var(--rows, 1)
+      )
+    )
+  );
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 1), var(--size));
+  gap: var(--gap);
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  overflow: auto;
+  padding: 2px;
+  background: var(--line);
+  border-radius: 6px;
+  outline: 3px solid transparent;
+}
+#board[data-puzzle="minesweeper"] {
+  --max: 64px;
+}
+#board[data-status="solved"] {
+  outline-color: var(--good);
+}
+#board[data-status="lost"] {
+  outline-color: var(--bad);
+}
+#board:empty {
+  min-width: 240px;
+  min-height: 120px;
+}
+.cell {
+  width: var(--size);
+  height: var(--size);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--pipe);
+  font-weight: 600;
+  font-size: calc(var(--size) * 0.5);
+}
+.cell svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  fill: currentColor;
+  stroke-width: 8;
+}
+.cell.loop {
+  background: #fde8e8;
+  color: var(--bad);
+}
+.cell.last {
+  animation: flash 0.25s ease-out;
+}
+@keyframes flash {
+  from {
+    background: #cfdcff;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cell.last {
+    animation: none;
+  }
+}
+#board:not(.locked) .cell:not(.open):hover {
+  background: #eef3ff;
+}
+#board:not(.locked) .cell.loop:hover {
+  background: #f9d6d6;
+}
+.locked .cell {
+  cursor: default;
 }
 
-#board button {
-    margin: 0;
-    padding: 0;
-    border: 1px solid black;
+/* Minesweeper cells */
+[data-puzzle="minesweeper"] .cell {
+  color: var(--ink);
+}
+[data-puzzle="minesweeper"] .cell.open {
+  background: #e9ebef;
+  cursor: default;
+}
+[data-puzzle="minesweeper"] .cell.boom {
+  background: #f6caca;
+}
+.cell[data-n="1"] {
+  color: var(--accent);
+}
+.cell[data-n="2"] {
+  color: var(--good);
+}
+.cell[data-n="3"],
+.cell.mine {
+  color: var(--bad);
 }
 
-#board .cell {
-    width: 50px;
-    height: 50px;
-    margin: 0;
-    padding: 0;
-    border: 1px solid black;
+/* Side panels */
+aside {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+@media (min-width: 761px) {
+  aside {
+    position: sticky;
+    top: 16px;
+    align-self: start;
+  }
+}
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+.panel h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.row select {
+  flex: 1;
+}
+.stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+.stats dt {
+  color: var(--muted);
+}
+.stats dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.nav {
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.nav button {
+  padding: 6px 10px;
+}
+#history {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: min(100px, 35vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 2px;
+}
+#history button {
+  width: 100%;
+  border: 0;
+  border-radius: 4px;
+  text-align: left;
+  padding: 4px 8px;
+  text-transform: capitalize;
+  font-variant-numeric: tabular-nums;
+}
+#history [aria-current] {
+  background: var(--accent);
+  color: #fff;
 }
