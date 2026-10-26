@@ -1,6 +1,6 @@
 import random
 
-from puzzles.minesweeper.state import (
+from backend.puzzles.minesweeper.state import (
     UNKNOWN,
     neighbors,
 )

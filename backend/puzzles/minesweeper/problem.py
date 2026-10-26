@@ -1,4 +1,6 @@
+
 from dataclasses import dataclass
+from math import log2
 
 from .state import (
     UNKNOWN,
@@ -14,32 +16,63 @@ from .action import RevealAction, FlagAction
 @dataclass(frozen=True)
 class MinesweeperState:
     """
-    Immutable knowledge state.
+    Solver-visible state matching the environment's representation.
 
-    Cell meanings:
-        UNKNOWN  (-1): unresolved
-        FLAGGED  (-2): asserted mine
-        0..8: revealed clue / residual mine requirement
+    UNKNOWN (-1): unresolved cell
+    FLAGGED (-2): cell asserted to be a mine
+    0..8: original displayed clue
     """
 
     cells: tuple[int, ...]
 
 
+@dataclass(frozen=True)
+class _ResidualState:
+    """
+    Internal reasoning state.
+
+    `cells` preserves the original cell markers and displayed clues.
+    `requirements[cell]` stores the remaining mine requirement for
+    each revealed clue, after accounting for asserted mines.
+
+    None means that the cell is not a revealed clue.
+
+    Keeping requirements separate prevents negative residual values
+    from colliding with UNKNOWN (-1) and FLAGGED (-2).
+    """
+
+    cells: tuple[int, ...]
+    requirements: tuple[int | None, ...]
+
+
 class MinesweeperProblem:
+    """
+    Solver-side Minesweeper model.
+
+    Never stores or inspects the actual mine map.
+
+    Public methods accept the original visible state.
+    Internal deduction and probability methods use _ResidualState
+    after propagation.
+    """
+
     def __init__(
         self,
         rows: int,
         cols: int,
         initial_state: MinesweeperState,
-        mines: frozenset[int],
     ):
+        if rows <= 0 or cols <= 0:
+            raise ValueError("rows and cols must be positive")
+
+        if len(initial_state.cells) != rows * cols:
+            raise ValueError(
+                "State size must equal rows * cols"
+            )
+
         self.rows = rows
         self.cols = cols
         self.initial_state = initial_state
-
-        # Hidden environment information.
-        # The solver itself should not inspect this when choosing actions.
-        self.mines = mines
 
     # ------------------------------------------------------------
     # Basic state helpers
@@ -66,29 +99,28 @@ class MinesweeperProblem:
     # Constraint checking
     # ------------------------------------------------------------
 
-    def _is_contradiction(self, state):
+    def _is_contradiction(self, state: _ResidualState):
         """
-        A revealed clue is represented by its remaining mine requirement.
-
-        Therefore:
-
-            residual < 0
-                impossible
-
-            residual > number of unresolved neighbors
-                impossible
+        Return True if any residual clue is impossible to satisfy.
         """
 
         for cell, value in enumerate(state.cells):
             if not is_revealed(value):
                 continue
 
-            unknown_count = len(self._unknown_neighbors(state, cell))
+            requirement = state.requirements[cell]
 
-            if value < 0:
+            if requirement is None:
                 return True
 
-            if value > unknown_count:
+            unknown_count = len(
+                self._unknown_neighbors(state, cell)
+            )
+
+            if requirement < 0:
+                return True
+
+            if requirement > unknown_count:
                 return True
 
         return False
@@ -97,151 +129,139 @@ class MinesweeperProblem:
     # Forced deduction
     # ------------------------------------------------------------
 
-    def _forced_assignments(self, state):
+    def _forced_assignments(self, state: _ResidualState):
         """
-        Return assignments forced by the current residual constraints.
+        Return {cell: is_mine} for direct logical deductions.
 
-        Each result is:
-
-            (cell, is_mine)
-
-        where:
-
-            is_mine=True   -> cell must be a mine
-            is_mine=False  -> cell must be safe
-
-        Only direct local deductions are implemented here.
+        True  = forced mine
+        False = forced safe
+        None  = contradictory deductions
         """
 
         forced = {}
+
+        def assign(cell, is_mine):
+            if cell in forced and forced[cell] != is_mine:
+                return False
+
+            forced[cell] = is_mine
+            return True
 
         for cell, value in enumerate(state.cells):
             if not is_revealed(value):
                 continue
 
+            requirement = state.requirements[cell]
+
+            if requirement is None:
+                return None
+
             unknown = self._unknown_neighbors(state, cell)
 
-            if value == 0:
+            if requirement == 0:
                 for n in unknown:
-                    forced[n] = False
+                    if not assign(n, False):
+                        return None
 
-            elif value == len(unknown):
+            elif requirement == len(unknown):
                 for n in unknown:
-                    forced[n] = True
+                    if not assign(n, True):
+                        return None
 
         return forced
 
     # ------------------------------------------------------------
-    # Propagation
+    # Constraint propagation
     # ------------------------------------------------------------
 
-    def _propagate(self, state):
+    def _propagate(self, state: MinesweeperState):
         """
-        Repeatedly apply forced deductions until reaching a fixed point.
+        Convert original displayed clues into residual requirements,
+        then repeatedly flag logically forced mines in a temporary
+        state until reaching a fixed point.
 
-        Returns:
-            propagated state
-            None if contradiction occurs
+        Existing flags are treated as asserted mines and subtracted
+        exactly once when residual requirements are initialized.
+
+        Newly inferred mines decrement adjacent residual requirements
+        exactly once when they are added.
+
+        The input state and environment are never modified.
         """
 
         cells = list(state.cells)
 
-        changed = True
+        # Preserve original clue values in `cells`.
+        # Store residual requirements separately to avoid sentinel
+        # collisions when a requirement becomes negative.
+        requirements = [None] * len(cells)
 
-        while changed:
-            changed = False
+        for cell, value in enumerate(cells):
+            if not is_revealed(value):
+                continue
 
-            current = MinesweeperState(tuple(cells))
+            flagged_count = sum(
+                1
+                for n in self._neighbors(cell)
+                if is_flagged(cells[n])
+            )
+
+            requirements[cell] = value - flagged_count
+
+        while True:
+            current = _ResidualState(
+                cells=tuple(cells),
+                requirements=tuple(requirements),
+            )
 
             if self._is_contradiction(current):
                 return None
 
             forced = self._forced_assignments(current)
 
-            for cell, is_mine in forced.items():
-                current_value = cells[cell]
-
-                if is_mine:
-                    # Already known to be a mine.
-                    if current_value == FLAGGED:
-                        continue
-
-                    # A revealed number cannot suddenly become a mine.
-                    if is_revealed(current_value):
-                        return None
-
-                    # Unknown -> flagged.
-                    cells[cell] = FLAGGED
-                    changed = True
-
-                    # Flagging a mine consumes one remaining mine
-                    # from every neighboring clue.
-                    for n in self._neighbors(cell):
-                        if is_revealed(cells[n]):
-                            cells[n] -= 1
-
-                else:
-                    # Safe cells remain UNKNOWN until we actually reveal
-                    # them through RevealAction.
-                    #
-                    # We deliberately do not encode "known safe" as another
-                    # board value yet.
-                    if current_value == FLAGGED:
-                        return None
-
-                    # Nothing to mutate here.
-                    # The deduction is represented by the forced result,
-                    # but actual information acquisition happens through
-                    # RevealAction.
-                    continue
-
-            # Check again after all mine assignments.
-            current = MinesweeperState(tuple(cells))
-
-            if self._is_contradiction(current):
+            if forced is None:
                 return None
 
-        return MinesweeperState(tuple(cells))
+            changed = False
+
+            for cell, is_mine in forced.items():
+                if not is_mine:
+                    continue
+
+                if not is_unknown(cells[cell]):
+                    continue
+
+                cells[cell] = FLAGGED
+                changed = True
+
+                # Account for this newly inferred mine in every
+                # adjacent revealed clue's residual requirement.
+                for n in self._neighbors(cell):
+                    if is_revealed(cells[n]):
+                        if requirements[n] is None:
+                            return None
+
+                        requirements[n] -= 1
+
+            if not changed:
+                result = _ResidualState(
+                    cells=tuple(cells),
+                    requirements=tuple(requirements),
+                )
+
+                if self._is_contradiction(result):
+                    return None
+
+                return result
 
     # ------------------------------------------------------------
-    # Public deduction interface
+    # Forced actions and candidate generation
     # ------------------------------------------------------------
 
-    def forced_actions(self, state):
+    def forced_actions(self, state: MinesweeperState):
         """
-        Convert current logical deductions into actual game actions.
-
-        A forced mine becomes FlagAction.
-
-        A forced safe cell becomes RevealAction.
-        """
-
-        forced = self._forced_assignments(state)
-
-        actions = []
-
-        for cell, is_mine in forced.items():
-            if is_mine:
-                if is_unknown(state.cells[cell]):
-                    actions.append(FlagAction(cell))
-
-            else:
-                if is_unknown(state.cells[cell]):
-                    actions.append(RevealAction(cell))
-
-        return actions
-
-    # ------------------------------------------------------------
-    # Search actions
-    # ------------------------------------------------------------
-
-    def actions(self, state):
-        """
-        Return applicable actions.
-
-        First prefer forced actions.
-
-        If there are no forced actions, branch on one unresolved cell.
+        Return logically forced actions without consulting the
+        hidden mine map.
         """
 
         propagated = self._propagate(state)
@@ -249,177 +269,429 @@ class MinesweeperProblem:
         if propagated is None:
             return []
 
-        forced = self.forced_actions(propagated)
+        # Return newly inferred mines that are not yet flagged
+        # in the real environment state.
+        newly_flagged = [
+            cell
+            for cell, value in enumerate(propagated.cells)
+            if is_unknown(state.cells[cell])
+            and value == FLAGGED
+        ]
 
-        if forced:
-            return forced
+        if newly_flagged:
+            return [
+                FlagAction(cell)
+                for cell in newly_flagged
+            ]
 
-        # No forced move remains.
-        #
-        # We need to make a search assumption.
-        #
-        # For now choose the first unknown cell and branch:
-        #
-        #   Flag(X)
-        #   Reveal(X)
-        #
-        # This is our blind-search branching mechanism.
-        for cell, value in enumerate(propagated.cells):
-            if value == UNKNOWN:
-                return [
-                    FlagAction(cell),
-                    RevealAction(cell),
-                ]
+        forced = self._forced_assignments(propagated)
 
-        return []
+        if forced is None:
+            return []
 
-    # ------------------------------------------------------------
-    # State transition
-    # ------------------------------------------------------------
+        return [
+            RevealAction(cell)
+            for cell, is_mine in forced.items()
+            if not is_mine
+            and is_unknown(propagated.cells[cell])
+        ]
 
-    def result(self, state, action):
+    def actions(self, state: MinesweeperState):
         """
-        Apply one action and return the resulting state.
+        Generate the next actions for the player-like solver.
 
-        Returns None if the action produces a contradiction
-        or reveals a mine.
-        """
+        Priority:
+        1. Flag logically forced mines.
+        2. Reveal logically forced-safe cells.
+        3. If neither exists, return all unknown cells as candidates.
 
-        cells = list(state.cells)
-
-        # --------------------------------------------------------
-        # Flag
-        # --------------------------------------------------------
-
-        if isinstance(action, FlagAction):
-            cell = action.cell
-
-            if not is_unknown(cells[cell]):
-                return None
-
-            cells[cell] = FLAGGED
-
-            # A newly asserted mine reduces the remaining mine
-            # requirement of neighboring clues.
-            for n in self._neighbors(cell):
-                if is_revealed(cells[n]):
-                    cells[n] -= 1
-
-            next_state = MinesweeperState(tuple(cells))
-
-            return self._propagate(next_state)
-
-        # --------------------------------------------------------
-        # Reveal
-        # --------------------------------------------------------
-
-        if isinstance(action, RevealAction):
-            cell = action.cell
-
-            if not is_unknown(cells[cell]):
-                return None
-
-            # The solver does not know this beforehand.
-            # The environment reveals the truth here.
-            if cell in self.mines:
-                return None
-
-            clue = self._actual_clue(cell)
-
-            cells[cell] = clue
-
-            next_state = MinesweeperState(tuple(cells))
-
-            # Zero expansion is an environmental consequence of
-            # revealing a zero.
-            if clue == 0:
-                cells = self._expand_zero_region(cells, cell)
-
-            next_state = MinesweeperState(tuple(cells))
-
-            return self._propagate(next_state)
-
-        raise TypeError(f"Unknown action type: {type(action)}")
-
-    # ------------------------------------------------------------
-    # Environment information
-    # ------------------------------------------------------------
-
-    def _actual_clue(self, cell):
-        """
-        Calculate the true Minesweeper clue from the hidden mine map.
+        The heuristic ranks reveal candidates. It never simulates
+        the hidden outcome of a reveal.
         """
 
-        return sum(
-            neighbor in self.mines
-            for neighbor in self._neighbors(cell)
+        propagated = self._propagate(state)
+
+        if propagated is None:
+            return []
+
+        forced = self._forced_assignments(propagated)
+
+        if forced is None:
+            return []
+
+        newly_flagged = [
+            cell
+            for cell, value in enumerate(propagated.cells)
+            if is_unknown(state.cells[cell])
+            and value == FLAGGED
+        ]
+
+        if newly_flagged:
+            return [
+                FlagAction(cell)
+                for cell in newly_flagged
+            ]
+
+        safe_cells = [
+            cell
+            for cell, is_mine in forced.items()
+            if not is_mine
+            and is_unknown(propagated.cells[cell])
+        ]
+
+        if safe_cells:
+            return [
+                RevealAction(cell)
+                for cell in safe_cells
+            ]
+
+        return [
+            RevealAction(cell)
+            for cell, value in enumerate(propagated.cells)
+            if is_unknown(value)
+        ]
+
+    # ------------------------------------------------------------
+    # Constraint-consistent configuration enumeration
+    # ------------------------------------------------------------
+
+    def _consistent_configurations(
+        self,
+        state: _ResidualState,
+        extra_cells=(),
+    ):
+        """
+        Enumerate assignments consistent with all residual constraints.
+
+        Each assignment maps an unknown cell to:
+            0 = safe
+            1 = mine
+
+        All FLAGGED cells are treated as asserted mines.
+        Revealed clues use their residual requirements.
+
+        `extra_cells` includes additional unknown cells needed to
+        calculate a candidate's mine probability or clue outcomes.
+
+        Returns a list of assignments, or [] if inconsistent.
+        """
+
+        constraints = []
+
+        for clue_cell, value in enumerate(state.cells):
+            if not is_revealed(value):
+                continue
+
+            requirement = state.requirements[clue_cell]
+
+            if requirement is None:
+                return []
+
+            unknown = self._unknown_neighbors(
+                state,
+                clue_cell,
+            )
+
+            if (
+                requirement < 0
+                or requirement > len(unknown)
+            ):
+                return []
+
+            constraints.append(
+                (tuple(unknown), requirement)
+            )
+
+        variables = set()
+
+        for cell in extra_cells:
+            if (
+                0 <= cell < len(state.cells)
+                and is_unknown(state.cells[cell])
+            ):
+                variables.add(cell)
+
+        for cells, _ in constraints:
+            variables.update(cells)
+
+        variables = sorted(variables)
+
+        assignment = {}
+        solutions = []
+
+        def feasible():
+            for constrained_cells, requirement in constraints:
+                assigned_mines = sum(
+                    assignment[cell]
+                    for cell in constrained_cells
+                    if cell in assignment
+                )
+
+                unassigned = sum(
+                    1
+                    for cell in constrained_cells
+                    if cell not in assignment
+                )
+
+                if assigned_mines > requirement:
+                    return False
+
+                if (
+                    assigned_mines + unassigned
+                    < requirement
+                ):
+                    return False
+
+            return True
+
+        def backtrack(index):
+            if index == len(variables):
+                if feasible():
+                    solutions.append(assignment.copy())
+                return
+
+            cell = variables[index]
+
+            for is_mine in (0, 1):
+                assignment[cell] = is_mine
+
+                if feasible():
+                    backtrack(index + 1)
+
+                del assignment[cell]
+
+        backtrack(0)
+        return solutions
+
+    # ------------------------------------------------------------
+    # Internal probability methods
+    # These methods accept an ALREADY-PROPAGATED state.
+    # ------------------------------------------------------------
+
+    def _mine_probability_residual(
+        self,
+        state: _ResidualState,
+        cell: int,
+    ):
+        """Mine probability for a residual state."""
+
+        if not is_unknown(state.cells[cell]):
+            return None
+
+        configurations = self._consistent_configurations(
+            state,
+            extra_cells=(cell,),
         )
 
-    def _expand_zero_region(self, cells, start):
+        if not configurations:
+            return None
+
+        mined = sum(
+            configuration[cell]
+            for configuration in configurations
+        )
+
+        return mined / len(configurations)
+
+    def _outcome_entropy_residual(
+        self,
+        state: _ResidualState,
+        cell: int,
+    ):
         """
-        Reveal the zero-connected region and its numbered boundary.
-
-        This is an environment operation, not a search operation.
+        Entropy in bits of the clue observed at `cell`,
+        conditional on that cell being safe.
         """
 
-        queue = [start]
-        visited = set()
+        if not is_unknown(state.cells[cell]):
+            return None
 
-        while queue:
-            cell = queue.pop()
+        adjacent = self._neighbors(cell)
 
-            if cell in visited:
-                continue
+        extra_cells = [cell] + [
+            n
+            for n in adjacent
+            if is_unknown(state.cells[n])
+        ]
 
-            visited.add(cell)
+        configurations = self._consistent_configurations(
+            state,
+            extra_cells=extra_cells,
+        )
 
-            # Never expand through a mine.
-            if cell in self.mines:
-                continue
+        if not configurations:
+            return None
 
-            clue = self._actual_clue(cell)
+        safe_configurations = [
+            configuration
+            for configuration in configurations
+            if configuration[cell] == 0
+        ]
 
-            # Only overwrite unresolved cells.
-            if cells[cell] == UNKNOWN:
-                cells[cell] = clue
+        if not safe_configurations:
+            return 0.0
 
-            if clue != 0:
-                continue
+        outcome_counts = {}
 
-            for n in self._neighbors(cell):
-                if n in visited:
-                    continue
+        for configuration in safe_configurations:
+            # Existing flags count as asserted mines.
+            clue = sum(
+                1
+                for n in adjacent
+                if is_flagged(state.cells[n])
+            )
 
-                if n in self.mines:
-                    continue
+            # Count mines among unknown neighbors.
+            clue += sum(
+                configuration.get(n, 0)
+                for n in adjacent
+                if is_unknown(state.cells[n])
+            )
 
-                if cells[n] == UNKNOWN:
-                    neighbor_clue = self._actual_clue(n)
-                    cells[n] = neighbor_clue
+            outcome_counts[clue] = (
+                outcome_counts.get(clue, 0) + 1
+            )
 
-                    if neighbor_clue == 0:
-                        queue.append(n)
+        total = len(safe_configurations)
 
-        return cells
+        return -sum(
+            (count / total) * log2(count / total)
+            for count in outcome_counts.values()
+            if count > 0
+        )
 
     # ------------------------------------------------------------
-    # Goal
+    # Public probability methods
+    # These accept the ORIGINAL visible state.
     # ------------------------------------------------------------
 
-    def is_goal(self, state):
+    def mine_probability(self, state, cell):
         """
-        Goal for this simulated puzzle:
+        Estimate P(cell is a mine | visible clues).
 
-        Every non-mine cell has been revealed and every mine
-        has been correctly identified.
+        Consistent configurations are initially treated as equally
+        likely. Returns None if the constraints are inconsistent.
         """
 
-        for cell, value in enumerate(state.cells):
-            if cell in self.mines:
-                if value != FLAGGED:
-                    return False
-            else:
-                if not is_revealed(value):
-                    return False
+        if not is_unknown(state.cells[cell]):
+            return None
 
-        return True
+        propagated = self._propagate(state)
+
+        if propagated is None:
+            return None
+
+        # A forced mine is already represented as FLAGGED internally.
+        if not is_unknown(propagated.cells[cell]):
+            return 1.0
+
+        return self._mine_probability_residual(
+            propagated,
+            cell,
+        )
+
+    def safety_probability(self, state, cell):
+        """Estimate P(cell is safe | visible clues)."""
+
+        probability = self.mine_probability(state, cell)
+
+        if probability is None:
+            return None
+
+        return 1.0 - probability
+
+    def outcome_entropy(self, state, cell):
+        """
+        Estimate the entropy of the clue observed at `cell`,
+        conditional on a safe reveal.
+        """
+
+        if not is_unknown(state.cells[cell]):
+            return None
+
+        propagated = self._propagate(state)
+
+        if propagated is None:
+            return None
+
+        if not is_unknown(propagated.cells[cell]):
+            # A forced mine cannot safely be revealed.
+            return 0.0
+
+        return self._outcome_entropy_residual(
+            propagated,
+            cell,
+        )
+
+    # ------------------------------------------------------------
+    # Candidate scoring
+    # ------------------------------------------------------------
+
+    def heuristic(
+        self,
+        state: MinesweeperState,
+        cell: int,
+        use_entropy=True,
+    ) -> float:
+        """
+        Higher score means a more attractive reveal candidate.
+
+        use_entropy=False:
+            Score by estimated safety probability.
+
+        use_entropy=True:
+            Score by safety probability * conditional clue entropy.
+
+        Logically known mines are never selected.
+        If guaranteed-safe candidates exist, uncertain candidates
+        are excluded.
+        """
+
+        if not (0 <= cell < len(state.cells)):
+            return float("-inf")
+
+        if not is_unknown(state.cells[cell]):
+            return float("-inf")
+
+        propagated = self._propagate(state)
+
+        if propagated is None:
+            return float("-inf")
+
+        forced = self._forced_assignments(propagated)
+
+        if forced is None or forced.get(cell) is True:
+            return float("-inf")
+
+        safe_cells = {
+            candidate
+            for candidate, is_mine in forced.items()
+            if not is_mine
+            and is_unknown(propagated.cells[candidate])
+        }
+
+        if safe_cells and cell not in safe_cells:
+            return float("-inf")
+
+        mine_probability = self._mine_probability_residual(
+            propagated,
+            cell,
+        )
+
+        if mine_probability is None:
+            return float("-inf")
+
+        safety = 1.0 - mine_probability
+
+        if not use_entropy:
+            return safety
+
+        entropy = self._outcome_entropy_residual(
+            propagated,
+            cell,
+        )
+
+        if entropy is None:
+            return float("-inf")
+
+        return safety * entropy

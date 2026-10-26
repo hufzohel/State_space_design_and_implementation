@@ -18,7 +18,6 @@ class ProMinesweeperProblem:
         self.propagator = ConstraintPropagator()
 
     def initial_state(self):
-
         constraints = self._build_constraints()
 
         state = KnowledgeState(
@@ -26,7 +25,17 @@ class ProMinesweeperProblem:
             constraints=tuple(constraints),
         )
 
-        return self.propagator.propagate(state)
+        result = self.propagator.propagate(state)
+
+        if result is None:
+            print("PROPAGATION CONTRADICTION")
+            for constraint in constraints:
+                print(
+                    f"cells={sorted(constraint.cells)}, "
+                    f"mines={constraint.mines}"
+                )
+
+        return result
 
     def _build_constraints(self):
 

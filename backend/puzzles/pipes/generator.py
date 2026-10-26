@@ -239,71 +239,82 @@ class PuzzleGenerator:
         return available
 
 
-    def choose_tile_with_parent_connection(self, required_direction, row, col, visited, n, m,):
+    
+    def choose_tile_with_parent_connection(
+        self, required_direction, row, col, visited, n, m
+    ):
         """
-        Choose the tile for a newly discovered cell.
+        Choose a legal tile configuration for a newly discovered cell.
 
-        The tile MUST contain the connection back to its parent.
-
-        Additional connections are chosen randomly from legal,
-        currently-unvisited neighbors.
-
-        Every chosen connection will later become a child of
-        this node.
+        The parent connection is mandatory.
+        Try branching configurations first, then simpler configurations.
+        If no child direction is legal, return a terminal tile.
         """
+
         available = self.get_available_directions(
-            row,
-            col,
-            visited,
-            n,
-            m,
+            row, col, visited, n, m
         )
 
-        random.shuffle(available)
+        # Generate candidate configurations containing the parent
+        # connection and any subset of currently available directions.
+        candidates = []
 
-        # The parent connection is already guaranteed.
-        # Choose how many additional children this node has.
-        child_count = random.randint(0, len(available))
+        for subset_size in range(len(available), -1, -1):
+            for _ in range(1):
+                shuffled = available[:]
+                random.shuffle(shuffled)
 
-        chosen_directions = [
-            required_direction,
-            *available[:child_count],
-        ]
+                chosen_directions = [
+                    required_direction,
+                    *shuffled[:subset_size],
+                ]
 
-        mask = 0
+                mask = 0
+                for direction in chosen_directions:
+                    mask |= direction
 
-        for direction in chosen_directions:
-            mask |= direction
+                if mask not in candidates:
+                    candidates.append(mask)
 
-        return mask
+        random.shuffle(candidates)
 
+        # Try each candidate in randomized order.
+        for mask in candidates:
+            legal = True
 
+            for direction in ALL_DIRECTIONS:
+                if not (mask & direction):
+                    continue
+
+                next_row, next_col = get_neighbor(
+                    row, col, direction
+                )
+                next_cell = (next_row, next_col)
+
+                if not in_bounds(next_row, next_col, n, m):
+                    legal = False
+                    break
+
+                if next_cell in visited:
+                    legal = False
+                    break
+
+            if legal:
+                return mask
+
+        # Fallback: preserve the parent connection as a terminal.
+        return required_direction
+
+    
     def generate_tree_tile_driven(self, n, m, max_attempts=100):
         """
-        Generate a spanning tree using the tile-driven approach.
+        Generate a spanning tree using tile-driven growth.
 
-        Construction:
-
-            random root
-                ↓
-            choose root tile
-                ↓
-            tile directions determine children
-                ↓
-            each child receives the reciprocal parent connection
-                ↓
-            repeat until all cells are visited
-
-        The generation is retried if random tile choices cause the
-        queue to become empty before the entire board is covered.
-
-        Queue entries contain:
-
-            ((row, col), tile_mask)
-
-        because the tile determines which directions this node
-        attempts to expand toward.
+        Each tile proposes directions for growth. A direction is
+        accepted only if it leads to an unvisited, in-bounds cell.
+        Accepted edges are recorded reciprocally in both tiles.
         """
+
         if n <= 0 or m <= 0:
             raise ValueError("Board dimensions must be positive.")
 
@@ -311,115 +322,49 @@ class PuzzleGenerator:
             return [[0]]
 
         for _ in range(max_attempts):
-
-            board = [
-                [None for _ in range(m)]
-                for _ in range(n)
-            ]
-
-            # ----------------------------------------------------
-            # 1. Random root
-            # ----------------------------------------------------
+            board = [[0 for _ in range(m)] for _ in range(n)]
 
             start = (
                 random.randint(0, n - 1),
                 random.randint(0, m - 1),
             )
 
-            # ----------------------------------------------------
-            # 2. Choose root's tile
-            # ----------------------------------------------------
-
-            root_candidates = self.get_available_directions(
-                start[0],
-                start[1],
-                visited=set(),
-                n=n,
-                m=m,
-            )
-
-            random.shuffle(root_candidates)
-
-            # Root must have at least one child.
-            root_child_count = random.randint(
-                1,
-                len(root_candidates),
-            )
-
-            root_directions = root_candidates[:root_child_count]
-
-            root_mask = 0
-
-            for direction in root_directions:
-                root_mask |= direction
-
-            board[start[0]][start[1]] = root_mask
-
-            # ----------------------------------------------------
-            # 3. Grow tree according to tile directions
-            # ----------------------------------------------------
-
             visited = {start}
-
-            queue = deque([
-                (start, root_mask)
-            ])
+            queue = deque([start])
 
             while queue:
+                row, col = queue.popleft()
 
-                (row, col), tile_mask = queue.popleft()
+                # Only directions that can create new tree edges.
+                available = self.get_available_directions(
+                    row, col, visited, n, m
+                )
+                random.shuffle(available)
 
-                for direction in ALL_DIRECTIONS:
+                # A tile can stop, continue, or branch.
+                child_count = random.randint(0, len(available))
+                chosen_directions = available[:child_count]
 
-                    # This tile does not contain this connection.
-                    if not (tile_mask & direction):
-                        continue
-
+                for direction in chosen_directions:
                     next_row, next_col = get_neighbor(
-                        row,
-                        col,
-                        direction,
+                        row, col, direction
                     )
-
                     next_cell = (next_row, next_col)
 
-                    # Defensive checks.
+                    # Recheck because an earlier direction may have
+                    # changed the visited set.
                     if not in_bounds(next_row, next_col, n, m):
                         continue
 
                     if next_cell in visited:
                         continue
 
-                    # ------------------------------------------------
-                    # The parent -> child edge is now created.
-                    # ------------------------------------------------
+                    # Commit this edge to both endpoint masks.
+                    board[row][col] |= direction
+                    board[next_row][next_col] |= OPPOSITE[direction]
 
                     visited.add(next_cell)
-
-                    # Child must contain the reciprocal connection.
-                    parent_direction = OPPOSITE[direction]
-
-                    child_mask = self.choose_tile_with_parent_connection(
-                        required_direction=parent_direction,
-                        row=next_row,
-                        col=next_col,
-                        visited=visited,
-                        n=n,
-                        m=m,
-                    )
-
-                    board[next_row][next_col] = child_mask
-
-                    queue.append(
-                        (
-                            next_cell,
-                            child_mask,
-                        )
-                    )
-
-            # ----------------------------------------------------
-            # 4. Did the tree cover the whole board?
-            # ----------------------------------------------------
+                    queue.append(next_cell)
 
             if len(visited) == n * m:
                 return board
@@ -428,6 +373,7 @@ class PuzzleGenerator:
             f"Failed to generate a complete tree after "
             f"{max_attempts} attempts."
         )
+
 
 
     def generate_puzzle_tile_driven(self, n, m):
