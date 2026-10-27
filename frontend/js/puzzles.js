@@ -15,7 +15,8 @@ const DIRS = [[-1, 0], [0, 1], [1, 0], [0, -1]]; // N E S W
 export function applyMove(puzzle, state, mv) {
     const s = structuredClone(state);
     if (puzzle === "pipes") {
-        s.cells[mv.row][mv.col] = rotateMask(s.cells[mv.row][mv.col]);
+        for (let i = 0; i < (mv.turns ?? 1); i++)
+            s.cells[mv.row][mv.col] = rotateMask(s.cells[mv.row][mv.col]);
         return s;
     }
     const first = s.cells[mv.row][mv.col];

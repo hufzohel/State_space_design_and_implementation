@@ -1,92 +1,64 @@
-
-# dispatcher.py
+"""Application-level dispatch for puzzle generation and solvers."""
 
 
 def generate_problem(game: str, generator: str, **kwargs):
-    """Dispatch puzzle generation to the appropriate generator."""
-
+    """Generate a puzzle using the public generator interfaces."""
     if game == "pipes":
-        from .puzzles.pipes.generator import generate_puzzle
+        from backend.puzzles.pipes.generator import PuzzleGenerator
 
-        if generator in ("tree", "tile"):
-            return generate_puzzle(
-                kwargs["rows"],
-                kwargs["cols"],
-                method=generator,
-            )
-
-        raise ValueError(f"Unsupported Pipes generator: {generator}")
-
-    if game == "kakurasu":
-        from .puzzles.kakurasu.generator import generate_puzzle
-
-        # Adapt this call if your Kakurasu generator uses
-        # a different function signature.
-        if generator in ("default", "random"):
-            return generate_puzzle(**kwargs)
-
-        raise ValueError(f"Unsupported Kakurasu generator: {generator}")
+        if generator not in {"tree", "tile"}:
+            raise ValueError("Unsupported Pipes generator: %s" % generator)
+        rows = kwargs["rows"]
+        cols = kwargs["cols"]
+        return PuzzleGenerator().generate_puzzle(rows, cols, method=generator)
 
     if game == "minesweeper":
-        from .puzzles.minesweeper.generator import generate_puzzle
+        from backend.puzzles.minesweeper.generator import MinesweeperGenerator
 
-        # Adapt this call if your Minesweeper generator uses
-        # a different function signature.
-        if generator in ("default", "random"):
-            return generate_puzzle(**kwargs)
+        if generator not in {"default", "random"}:
+            raise ValueError("Unsupported Minesweeper generator: %s" % generator)
+        return MinesweeperGenerator(
+            rows=kwargs["rows"],
+            cols=kwargs["cols"],
+            mine_count=kwargs["mine_count"],
+            seed=kwargs.get("seed"),
+        ).generate()
 
-        raise ValueError(
-            f"Unsupported Minesweeper generator: {generator}"
-        )
-
-    raise ValueError(f"Unknown puzzle: {game}")
+    raise ValueError(
+        "Unsupported puzzle: %s (Kakurasu is intentionally deferred)" % game
+    )
 
 
 def solve_problem(game: str, algorithm: str, problem, environment=None):
-    """Dispatch a prepared problem to the appropriate solver."""
-
+    """Dispatch a prepared problem to a solver."""
     if game == "pipes":
         if algorithm == "dfs":
-            from .search.dfs import DFSSolver
+            from backend.search.dfs import DFSSolver
+
             return DFSSolver(problem).solve()
-
         if algorithm == "astar":
-            from .search.astar import astar
+            from backend.search.astar import astar
+
             return astar(problem)
-
-        raise ValueError(f"Unsupported Pipes algorithm: {algorithm}")
-
-    if game == "kakurasu":
-        if algorithm == "dfs":
-            from .search.dfs import DFSSolver
-            return DFSSolver(problem).solve()
-
-        if algorithm == "astar":
-            from .search.astar import astar
-            return astar(problem)
-
-        raise ValueError(f"Unsupported Kakurasu algorithm: {algorithm}")
+        raise ValueError("Unsupported Pipes algorithm: %s" % algorithm)
 
     if game == "minesweeper":
         if environment is None:
-            raise ValueError(
-                "Minesweeper requires an environment."
-            )
-
+            raise ValueError("Minesweeper requires an environment")
         if algorithm == "online_dfs":
-            from .search.onlineDFS import OnlineBlindSolver
+            from backend.search.onlineDFS import OnlineBlindSolver
+
             return OnlineBlindSolver(problem)
-
         if algorithm == "greedy":
-            from .search.greedy import GreedySolver
+            from backend.search.greedy import GreedySolver
+
             return GreedySolver(problem, environment).solve()
-
         if algorithm == "constraint_propagation":
-            from .search.Minesweeper_pro_solver import ConstraintPropagator
+            from backend.search.Minesweeper_pro_solver import ConstraintPropagator
+
             return ConstraintPropagator().propagate(problem)
+        raise ValueError("Unsupported Minesweeper algorithm: %s" % algorithm)
 
-        raise ValueError(
-            f"Unsupported Minesweeper algorithm: {algorithm}"
-        )
-
-    raise ValueError(f"Unknown puzzle: {game}")
+    raise ValueError(
+        "Unsupported puzzle: %s (Kakurasu is intentionally deferred)" % game
+    )

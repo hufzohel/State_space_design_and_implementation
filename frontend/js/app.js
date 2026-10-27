@@ -1,4 +1,4 @@
-import { config, getStatus, getOptions, generatePuzzle, solvePuzzle } from "./api.js";
+import { config, getStatus, getOptions, generatePuzzle, solvePuzzle, applyMinesweeperAction } from "./api.js";
 import { applyMove, analyze } from "./puzzles.js";
 import { renderBoard, renderHistory } from "./renderer.js";
 
@@ -100,7 +100,7 @@ async function generate() {
     const name = puzzle;
     await run("Generating puzzle…", async () => {
         const r = await generatePuzzle(name, { generator: prefs[name].generator });
-        sessions[name] = { snaps: [r.state], moves: [], cursor: 0, mode: "human", playing: false, genMs: r.time, solveMs: null, algo: null, t0: null, t1: null };
+        sessions[name] = { id: r.id, snaps: [r.state], moves: [], cursor: 0, mode: "human", playing: false, genMs: r.time, solveMs: null, algo: null, t0: null, t1: null };
     });
 }
 
@@ -110,7 +110,7 @@ async function solve() {
     stopPlay();
     const label = ui.solver.selectedOptions[0].text, start = s.snaps[0];
     await run(`Running ${label}…`, async () => {
-        const r = await solvePuzzle(name, { state: start, algorithm: id });
+        const r = await solvePuzzle(name, { id: s.id, state: start, algorithm: id });
         const snaps = [start];
         for (const mv of r.moves) snaps.push(applyMove(name, snaps[snaps.length - 1], mv));
         Object.assign(s, { snaps, moves: r.moves, cursor: 0, mode: "solver", solveMs: r.time, algo: label, t0: null, t1: null });
@@ -118,7 +118,7 @@ async function solve() {
     if (!notice) startPlay();
 }
 
-function onCell(row, col, how) {
+async function onCell(row, col, how) {
     if (!canInteract()) return;
     const s = sessions[puzzle], cur = s.snaps[s.cursor];
     let action = "rotate";
@@ -127,6 +127,20 @@ function onCell(row, col, how) {
         const c = cur.cells[row][col];
         if (c.open || (c.flag && action === "reveal")) return;
     }
+
+    if (puzzle === "minesweeper" && !config.mock) {
+        const cell = row * cur.cols + col;
+        await run("Applying move…", async () => {
+            const result = await applyMinesweeperAction(s.id, action, cell);
+            s.t0 ??= performance.now();
+            s.moves.push(result.move);
+            s.snaps.push(result.state);
+            s.cursor++;
+            if (result.status !== "playing") s.t1 = performance.now();
+        });
+        return;
+    }
+
     const mv = { row, col, action }, next = applyMove(puzzle, cur, mv);
     s.t0 ??= performance.now();
     s.moves.push(mv); s.snaps.push(next); s.cursor++;

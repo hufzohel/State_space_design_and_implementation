@@ -178,61 +178,129 @@ class PipesProblem:
 
         return True
 
+    # def heuristic(self, state):
+    #     """
+    #     Estimates the remaining tree-connection progress.
+
+    #     The reciprocal connections form a graph over the tiles.
+    #     If the graph has C connected components, at least C - 1
+    #     component merges are needed to obtain one connected tree.
+
+    #     This measures structural progress toward the goal.
+    #     """
+
+    #     n = len(state) 
+
+    #     # Find connected components in the reciprocal-connection graph.
+    #     visited = set()
+    #     components = 0
+
+    #     for start in range(n):
+    #         if start in visited:
+    #             continue
+
+    #         components += 1
+    #         stack = [start]
+    #         visited.add(start)
+
+    #         while stack:
+    #             index = stack.pop()
+
+    #             row = index // self.cols
+    #             col = index % self.cols
+    #             mask = state[index]
+
+    #             for direction in ALL_DIRECTIONS:
+    #                 if not (mask & direction):
+    #                     continue
+
+    #                 next_row = row + DIRECTIONS[direction][0]
+    #                 next_col = col + DIRECTIONS[direction][1]
+
+    #                 # Boundary connection cannot be reciprocal.
+    #                 if not (
+    #                     0 <= next_row < self.rows
+    #                     and 0 <= next_col < self.cols
+    #                 ):
+    #                     continue
+
+    #                 next_index = next_row * self.cols + next_col
+    #                 next_mask = state[next_index]
+
+    #                 # Only traverse reciprocal connections.
+    #                 if not (next_mask & OPPOSITE[direction]):
+    #                     continue
+
+    #                 if next_index not in visited:
+    #                     visited.add(next_index)
+    #                     stack.append(next_index)
+
+    #     return components - 1
+
     def heuristic(self, state):
         """
-        Estimates the remaining tree-connection progress.
+        Count individual violations.
 
-        The reciprocal connections form a graph over the tiles.
-        If the graph has C connected components, at least C - 1
-        component merges are needed to obtain one connected tree.
+        Violations:
+        1. Each connection pointing outside the board.
+        2. Each dangling connection (not reciprocated by its neighbor).
+        3. Each reciprocal edge that creates a cycle.
 
-        This measures structural progress toward the goal.
+        A tile can contribute multiple violations.
         """
 
-        n = len(state) 
+        n = len(state)
+        violations = 0
 
-        # Find connected components in the reciprocal-connection graph.
-        visited = set()
-        components = 0
+        parent = list(range(n))
 
-        for start in range(n):
-            if start in visited:
-                continue
+        def find(x):
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
 
-            components += 1
-            stack = [start]
-            visited.add(start)
+        def union(x, y):
+            root_x = find(x)
+            root_y = find(y)
 
-            while stack:
-                index = stack.pop()
+            if root_x == root_y:
+                return False
+            parent[root_y] = root_x
+            return True
 
-                row = index // self.cols
-                col = index % self.cols
-                mask = state[index]
+        for index, mask in enumerate(state):
+            row = index // self.cols
+            col = index % self.cols
 
-                for direction in ALL_DIRECTIONS:
-                    if not (mask & direction):
-                        continue
+            for direction in ALL_DIRECTIONS:
+                if not (mask & direction):
+                    continue
 
-                    next_row = row + DIRECTIONS[direction][0]
-                    next_col = col + DIRECTIONS[direction][1]
+                dr, dc = DIRECTIONS[direction]
+                next_row = row + dr
+                next_col = col + dc
 
-                    # Boundary connection cannot be reciprocal.
-                    if not (
-                        0 <= next_row < self.rows
-                        and 0 <= next_col < self.cols
-                    ):
-                        continue
+                # Violation 1: connection points outside the board.
+                if not (
+                    0 <= next_row < self.rows
+                    and 0 <= next_col < self.cols
+                ):
+                    violations += 1
+                    continue
 
-                    next_index = next_row * self.cols + next_col
-                    next_mask = state[next_index]
+                next_index = next_row * self.cols + next_col
+                next_mask = state[next_index]
 
-                    # Only traverse reciprocal connections.
-                    if not (next_mask & OPPOSITE[direction]):
-                        continue
+                # Violation 2: dangling connection.
+                if not (next_mask & OPPOSITE[direction]):
+                    violations += 1
+                    continue
 
-                    if next_index not in visited:
-                        visited.add(next_index)
-                        stack.append(next_index)
+                # Process each reciprocal edge exactly once.
+                if direction in (RIGHT, DOWN):
+                    # Violation 3: edge creates a cycle.
+                    if not union(index, next_index):
+                        violations += 1
 
-        return components - 1
+        return violations
