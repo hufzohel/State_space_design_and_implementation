@@ -60,7 +60,7 @@ def create_problem(initial_cells):
 
 def run_blind(problem, environment):
     """Run the online blind solver through the real environment."""
-    solver = OnlineBlindSolver(problem)
+    solver = OnlineBlindSolver(problem, environment)
 
     state = EnvironmentState(cells=tuple(problem.initial_state.cells))
     actions = []
@@ -140,14 +140,30 @@ def run_pro(initial_cells, environment):
         ]
 
         if not pending:
-            status = "stalled"
-            print("\n[Pro solver stalled]")
-            print("Unresolved constraints:")
-            for constraint in knowledge.constraints:
-                print(
-                    f"{sorted(constraint.cells)} = {constraint.mines}"
-                )
-            break
+            unknown_cells = [
+                cell
+                for cell, value in enumerate(state.cells)
+                if value == -1
+            ]
+
+            if not unknown_cells:
+                status = "stalled"
+                break
+
+            # Deduction is exhausted: make a blind guess.
+            import random
+            cell = random.choice(unknown_cells)
+
+            from backend.puzzles.minesweeper.action import RevealAction
+            action = RevealAction(cell=cell)
+
+            new_state = environment.execute(state, action)
+
+            actions.append(action)
+            states.append(new_state)
+            state = new_state
+
+            continue
 
         # Apply one deduction, then rebuild the knowledge base.
         # This avoids applying stale deductions after the board changes.

@@ -48,7 +48,7 @@ def solve_problem(game: str, algorithm: str, problem, environment=None):
         if algorithm == "online_dfs":
             from backend.search.onlineDFS import OnlineBlindSolver
 
-            return OnlineBlindSolver(problem)
+            return OnlineBlindSolver(problem, environment)
         if algorithm == "greedy":
             from backend.search.greedy import GreedySolver
 
