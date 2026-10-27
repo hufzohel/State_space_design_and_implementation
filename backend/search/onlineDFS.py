@@ -1,6 +1,19 @@
 
+from dataclasses import dataclass
+from time import perf_counter
+
 from backend.puzzles.minesweeper.action import RevealAction, FlagAction
-from backend.puzzles.minesweeper.state import UNKNOWN, is_unknown
+from backend.puzzles.minesweeper.state import is_unknown
+from backend.puzzles.minesweeper.environment import MinesweeperState
+
+
+@dataclass
+class OnlineDFSResult:
+    actions: list
+    states: list
+    expanded_nodes: int
+    elapsed_seconds: float
+    status: str
 
 
 class OnlineBlindSolver:
@@ -10,11 +23,12 @@ class OnlineBlindSolver:
     Uses only the visible state and problem.actions().
     Does not inspect the hidden mine layout or use heuristic scores.
 
-    The environment must execute each chosen action externally.
+    The environment executes each chosen action externally.
     """
 
-    def __init__(self, problem):
+    def __init__(self, problem, environment):
         self.problem = problem
+        self.environment = environment
         self.stack = []
         self.pending = set()
 
@@ -34,14 +48,13 @@ class OnlineBlindSolver:
         if not candidates:
             return None
 
-        # Keep only actions that are currently available.
         candidate_by_cell = {
             action.cell: action
             for action in candidates
             if isinstance(action, (RevealAction, FlagAction))
         }
 
-        # Discard pending cells that are no longer actionable.
+        # Discard cells that are no longer actionable.
         self.stack = [
             cell for cell in self.stack
             if cell in candidate_by_cell
@@ -62,3 +75,47 @@ class OnlineBlindSolver:
                 return action
 
         return None
+
+    def solve(self):
+        start_time = perf_counter()
+
+        state = MinesweeperState(
+            cells=tuple(self.problem.initial_state.cells)
+        )
+
+        states = [state]
+        actions_taken = []
+        expanded_nodes = 0
+
+        while True:
+            # Check terminal conditions before selecting another action.
+            if state.lost:
+                status = "lost"
+                break
+
+            if self.environment.is_win(state):
+                status = "won"
+                break
+
+            chosen = self.choose_action(state)
+
+            if chosen is None:
+                status = "no_actions"
+                break
+
+            expanded_nodes += 1
+
+            # Execute one real action against the environment.
+            new_state = self.environment.execute(state, chosen)
+
+            actions_taken.append(chosen)
+            states.append(new_state)
+            state = new_state
+
+        return OnlineDFSResult(
+            actions=actions_taken,
+            states=states,
+            expanded_nodes=expanded_nodes,
+            elapsed_seconds=perf_counter() - start_time,
+            status=status,
+        )
