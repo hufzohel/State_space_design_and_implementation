@@ -27,15 +27,15 @@ class ProMinesweeperProblem:
 
         result = self.propagator.propagate(state)
 
-        if result is None:
-            print("PROPAGATION CONTRADICTION")
-            for constraint in constraints:
-                print(
-                    f"cells={sorted(constraint.cells)}, "
-                    f"mines={constraint.mines}"
-                )
+        # Preserve the propagation history for visualization.
+        self.last_steps = result.steps
 
-        return result
+        if result.contradiction:
+            print("PROPAGATION CONTRADICTION")
+            return None
+
+        # Preserve the original return interface.
+        return result.state
 
     def _build_constraints(self):
 
