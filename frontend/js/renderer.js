@@ -10,26 +10,160 @@ const el = (tag, cls, text) => {
 };
 const coord = (r, c) => String.fromCharCode(65 + c) + (r + 1);
 
-export function renderBoard(puzzle, state, { loops = new Set(), status = "playing", last = null, locked = false, onCell = () => {} } = {}) {
+export function renderBoard(
+    puzzle,
+    state,
+    {
+        loops = new Set(),
+        status = "playing",
+        last = null,
+        locked = false,
+        onCell = () => {}
+    } = {}
+) {
     board.replaceChildren();
+
     board.dataset.status = status;
     board.dataset.puzzle = puzzle;
     board.classList.toggle("locked", locked);
-    if (!state) return;
+
+    if (!state) {
+        return;
+    }
+
+    if (puzzle === "kakurasu") {
+        renderKakurasuBoard(state, {
+            loops,
+            last,
+            locked,
+            onCell
+        });
+
+        return;
+    }
+
     board.style.setProperty("--cols", state.cols);
     board.style.setProperty("--rows", state.rows);
 
-    state.cells.forEach((row, r) => row.forEach((v, c) => {
-        const b = el("button", "cell");
-        b.type = "button";
-        b.setAttribute("aria-label", coord(r, c));
-        if (last && last.row === r && last.col === c) b.classList.add("last");
-        b.onclick = e => onCell(r, c, e.shiftKey ? "flag" : "click");
-        b.oncontextmenu = e => { e.preventDefault(); onCell(r, c, "flag"); };
-        if (puzzle === "pipes") drawPipe(b, v, loops.has(r * state.cols + c));
-        else drawMine(b, v, status === "lost");
-        board.append(b);
-    }));
+    state.cells.forEach((row, r) => {
+        row.forEach((v, c) => {
+            const b = el("button", "cell");
+
+            b.type = "button";
+            b.setAttribute("aria-label", coord(r, c));
+
+            if (last && last.row === r && last.col === c) {
+                b.classList.add("last");
+            }
+
+            b.onclick = e => {
+                onCell(r, c, e.shiftKey ? "flag" : "click");
+            };
+
+            b.oncontextmenu = e => {
+                e.preventDefault();
+                onCell(r, c, "flag");
+            };
+
+            if (puzzle === "pipes") {
+                drawPipe(b, v, loops.has(r * state.cols + c));
+            } else {
+                drawMine(b, v, status === "lost");
+            }
+
+            board.append(b);
+        });
+    });
+}
+
+function renderKakurasuBoard(
+    state,
+    { loops = new Set(), last = null, locked = false, onCell = () => {} }
+) {
+    const { rows, cols, cells, row_targets, col_targets } = state;
+
+    const layout = el("div", "kakurasu-layout");
+
+    layout.style.setProperty("--k-rows", rows);
+    layout.style.setProperty("--k-cols", cols);
+
+    const corner = el("div", "kakurasu-corner");
+    layout.append(corner);
+
+    for (let c = 0; c < cols; c++) {
+        const target = el(
+            "div",
+            "kakurasu-target",
+            String(col_targets[c])
+        );
+
+        target.setAttribute(
+            "aria-label",
+            `Column ${c + 1} target: ${col_targets[c]}`
+        );
+
+        layout.append(target);
+    }
+
+    for (let r = 0; r < rows; r++) {
+        const target = el(
+            "div",
+            "kakurasu-target",
+            String(row_targets[r])
+        );
+
+        target.setAttribute(
+            "aria-label",
+            `Row ${r + 1} target: ${row_targets[r]}`
+        );
+
+        layout.append(target);
+
+        for (let c = 0; c < cols; c++) {
+            const value = cells[r][c];
+            const index = r * cols + c;
+
+            const b = el("button", "cell kakurasu-cell");
+
+            b.type = "button";
+            b.dataset.value = String(value);
+
+            b.setAttribute(
+                "aria-label",
+                `Row ${r + 1}, column ${c + 1}, ${
+                    value === 1 ? "black" :
+                    value === 0 ? "white" :
+                    "unassigned"
+                }`
+            );
+
+            if (value === 1) {
+                b.classList.add("black");
+            } else if (value === 0) {
+                b.classList.add("white");
+            } else {
+                b.classList.add("unknown");
+            }
+
+            if (loops.has(index)) {
+                b.classList.add("invalid");
+            }
+
+            if (last && last.row === r && last.col === c) {
+                b.classList.add("last");
+            }
+
+            b.disabled = locked;
+
+            b.onclick = () => onCell(r, c, "click");
+
+            layout.append(b);
+        }
+    }
+
+    board.style.setProperty("--cols", cols);
+    board.style.setProperty("--rows", rows);
+    board.append(layout);
 }
 
 function drawPipe(b, mask, inLoop) {

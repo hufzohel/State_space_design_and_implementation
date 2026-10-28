@@ -5,10 +5,31 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 const rnd = n => Math.floor(Math.random() * n);
 const D = [[-1, 0], [0, 1], [1, 0], [0, -1]];
 
-export async function generate(puzzle) {
+export async function generate(puzzle, options = {}) {
     const t = performance.now();
+
     await wait(150);
-    return { state: puzzle === "pipes" ? genPipes(6, 6) : genMines(9, 9, 10), time: performance.now() - t };
+
+    let state;
+
+    if (puzzle === "pipes") {
+        state = genPipes(6, 6);
+    } else if (puzzle === "minesweeper") {
+        state = genMines(9, 9, 10);
+    } else if (puzzle === "kakurasu") {
+        state = genKakurasu(
+            options.rows ?? 5,
+            options.cols ?? 5
+        );
+    } else {
+        throw new Error(`Unsupported puzzle: ${puzzle}`);
+    }
+
+    return {
+        id: `mock-${puzzle}-${Date.now()}`,
+        state,
+        time: performance.now() - t
+    };
 }
 
 export async function solve(puzzle, { state, algorithm }) {
@@ -62,4 +83,39 @@ function genMines(R, C, n) {
             if (cells[r + dr]?.[c + dc]?.mine) cell.adj++;
     }));
     return { rows: R, cols: C, cells };
+}
+
+function genKakurasu(R, C) {
+    const solution = Array.from(
+        { length: R },
+        () => Array.from({ length: C }, () => rnd(2))
+    );
+
+    const row_targets = solution.map(row =>
+        row.reduce(
+            (sum, value, c) => sum + value * (c + 1),
+            0
+        )
+    );
+
+    const col_targets = Array.from(
+        { length: C },
+        (_, c) =>
+            solution.reduce(
+                (sum, row, r) => sum + row[c] * (r + 1),
+                0
+            )
+    );
+
+    return {
+        rows: R,
+        cols: C,
+        cells: Array.from(
+            { length: R },
+            () => Array(C).fill(-1)
+        ),
+        row_targets,
+        col_targets,
+        _solution: solution
+    };
 }

@@ -1,8 +1,7 @@
-
 from dataclasses import dataclass
 
 from .state import UNKNOWN, FLAGGED, is_unknown, is_revealed, neighbors
-from .action import RevealAction, FlagAction
+from .action import RevealAction, FlagAction, UnflagAction
 
 
 @dataclass(frozen=True)
@@ -21,10 +20,7 @@ class MinesweeperEnvironment:
         return neighbors(cell, self.rows, self.cols)
 
     def _actual_clue(self, cell):
-        return sum(
-            n in self.mines
-            for n in self._neighbors(cell)
-        )
+        return sum(n in self.mines for n in self._neighbors(cell))
 
     def execute(self, state, action):
         """Execute one real action. This is not hypothetical search."""
@@ -36,6 +32,12 @@ class MinesweeperEnvironment:
 
         if not (0 <= cell < len(cells)):
             raise IndexError("Cell index out of range")
+
+        if isinstance(action, UnflagAction):
+            if cells[cell] != FLAGGED:
+                return state
+            cells[cell] = UNKNOWN
+            return MinesweeperState(tuple(cells))
 
         if not is_unknown(cells[cell]):
             return state
@@ -49,7 +51,23 @@ class MinesweeperEnvironment:
                 return MinesweeperState(tuple(cells), lost=True)
 
             # The environment obtains the actual clue.
-            cells[cell] = self._actual_clue(cell)
+            clue = self._actual_clue(cell)
+            cells[cell] = clue
+
+            # Revealing a 0 opens its neighbours too
+            # (flagged / already revealed cells are kept).
+            if clue == 0:
+                stack = [cell]
+                while stack:
+                    current = stack.pop()
+                    for n in self._neighbors(current):
+                        if not is_unknown(cells[n]) or n in self.mines:
+                            continue
+                        n_clue = self._actual_clue(n)
+                        cells[n] = n_clue
+                        if n_clue == 0:
+                            stack.append(n)
+
             return MinesweeperState(tuple(cells))
 
         raise TypeError(f"Unknown action type: {type(action)}")

@@ -21,12 +21,25 @@ export const config = { mock: true };
 
 const DEFAULT_OPTIONS = {
     pipes: {
-        generators: [{ id: "random", name: "Random" }],
-        solvers: [{ id: "dfs", name: "DFS" }, { id: "astar", name: "Heuristic (A*)" }]
+        generators: [{ id: "tree", name: "Tree" }, { id: "tile", name: "Tile" }],
+        solvers: [
+            { id: "dfs", name: "DFS" },
+            { id: "astar", name: "A*" }
+        ]
     },
     minesweeper: {
         generators: [{ id: "random", name: "Random" }],
-        solvers: [{ id: "dfs", name: "DFS" }, { id: "astar", name: "Heuristic (A*)" }]
+        solvers: [
+            { id: "online_dfs", name: "Online DFS" },
+            { id: "greedy", name: "Greedy" }
+        ]
+    },
+    kakurasu: {
+        generators: [{ id: "random", name: "Random" }],
+        solvers: [
+            { id: "dfs", name: "DFS" },
+            { id: "astar", name: "A*" }
+        ]
     }
 };
 
@@ -64,12 +77,25 @@ function minesweeperState(data) {
     return {
         rows: data.rows ?? cells.length,
         cols: data.cols ?? cells[0].length,
+        status: data.status,
         cells: cells.map((row, r) => row.map((value, c) => ({
             open: value >= 0,
             flag: value === -2,
             mine: mines.has(r * (data.cols ?? cells[0].length) + c),
             adj: value >= 0 ? value : 0
         })))
+    };
+}
+
+function kakurasuState(data) {
+    const cells = data.state ?? data.cells;
+
+    return {
+        rows: data.rows ?? cells.length,
+        cols: data.cols ?? cells[0].length,
+        cells: cells.map(row => row.map(Number)),
+        row_targets: [...(data.row_targets ?? [])],
+        col_targets: [...(data.col_targets ?? [])]
     };
 }
 
@@ -85,52 +111,92 @@ function optionsShape(data) {
 
 function fromBackend(puzzle, data, kind = "") {
     if (kind === "new") {
+        let state;
+
+        if (puzzle === "pipes") {
+            state = pipesState(data);
+        } else if (puzzle === "minesweeper") {
+            state = minesweeperState(data);
+        } else if (puzzle === "kakurasu") {
+            state = kakurasuState(data);
+        } else {
+            throw new Error(`Unsupported puzzle: ${puzzle}`);
+        }
+
         return {
             id: data.puzzle_id ?? data.game_id,
-            state: puzzle === "pipes" ? pipesState(data) : minesweeperState(data),
+            state,
             time: (data.generation_time_seconds ?? 0) * 1000
         };
     }
 
     if (kind === "solve") {
         const moves = [];
+
         for (const step of data.steps ?? []) {
             const action = step.action ?? {};
+
             if (puzzle === "pipes") {
                 const cols = data.cols ?? step.state?.[0]?.length ?? 1;
-                const tile = action.tile_index ?? 0;
+                const cell = action.tile_index ?? action.cell ?? 0;
+
                 moves.push({
-                    row: Math.floor(tile / cols),
-                    col: tile % cols,
+                    row: action.row ?? Math.floor(cell / cols),
+                    col: action.col ?? cell % cols,
                     action: "rotate",
                     turns: action.turns ?? 1
                 });
-            } else {
+            } else if (puzzle === "minesweeper") {
                 const cols = data.cols ?? step.state?.[0]?.length ?? 1;
                 const cell = action.cell ?? 0;
+
                 moves.push({
                     row: Math.floor(cell / cols),
                     col: cell % cols,
                     action: action.action ?? "reveal"
                 });
+            } else if (puzzle === "kakurasu") {
+                const cols = step.state?.[0]?.length ?? 1;
+                const cell = action.cell ?? 0;
+                moves.push({
+                    row: action.row ?? Math.floor(cell / cols),
+                    col: action.col ?? cell % cols,
+                    action: "assign",
+                    value: action.value
+                });
             }
         }
+        let snaps = null;
+        if (puzzle === "minesweeper") {
+            const arr = data.steps ?? [];
+            snaps = arr.map((step, i) => minesweeperState({
+                state: step.state,
+                mine_positions: i === arr.length - 1 ? data.mine_positions : [],
+                status: i === arr.length - 1 ? data.status : "playing"
+            }));
+        }
+
         return {
             moves,
-            time: (data.stats?.elapsed ?? 0) * 1000,
+            snaps,
+            time: (data.stats?.elapsed_seconds ?? data.stats?.elapsed ?? 0) * 1000,
             status: data.status,
+            solutionFound: data.solution_found ?? ["solved", "won"].includes(data.status),
             minePositions: data.mine_positions ?? []
         };
     }
+
     if (kind === "action") {
         const action = data.action ?? {};
         const cols = data.cols ?? data.state?.[0]?.length ?? 1;
         const cell = action.cell ?? 0;
         const state = minesweeperState(data);
+
         if (data.status === "lost") {
             state.cells[Math.floor(cell / cols)][cell % cols].open = true;
             state.cells[Math.floor(cell / cols)][cell % cols].mine = true;
         }
+
         return {
             state,
             status: data.status,
@@ -141,6 +207,7 @@ function fromBackend(puzzle, data, kind = "") {
             }
         };
     }
+
     return data;
 }
 
@@ -186,22 +253,50 @@ export async function generatePuzzle(puzzle, options = {}) {
 // Solving
 // ============================================================
 export async function solvePuzzle(puzzle, body = {}) {
-    if (config.mock) return Mock.solve(puzzle, body);
-    const payload = puzzle === "pipes"
-        ? {
+    if (config.mock) {
+        return Mock.solve(puzzle, body);
+    }
+
+    let endpoint;
+    let payload;
+
+    if (puzzle === "pipes") {
+        endpoint = "/pipes/solve";
+        payload = {
             puzzle_id: body.id,
             algorithm: body.algorithm,
-            state: body.state?.cells?.map(row => row.map(pipesMaskToBackend))
-        }
-        : {
+            state: body.state?.cells?.map(
+                row => row.map(pipesMaskToBackend)
+            )
+        };
+    } else if (puzzle === "minesweeper") {
+        endpoint = "/minesweeper/solve";
+        payload = {
             game_id: body.id,
             algorithm: body.algorithm
         };
-    const data = await request(`/${puzzle}/solve`, {
+    } else if (puzzle === "kakurasu") {
+        endpoint = "/kakurasu/solve";
+        payload = {
+            game_id: body.id,
+            algorithm: body.algorithm
+        };
+    } else {
+        throw new Error(`Unsupported puzzle: ${puzzle}`);
+    }
+
+    const data = await request(endpoint, {
         method: "POST",
         body: JSON.stringify(payload)
     });
-    return fromBackend(puzzle, data, "solve");
+
+    const result = fromBackend(puzzle, data, "solve");
+
+    if (!result.solutionFound && puzzle !== "minesweeper") {
+    throw new Error(`Solver did not find a solution: ${result.status}`);
+}
+
+    return result;
 }
 
 export async function applyMinesweeperAction(gameId, action, cell) {
@@ -211,6 +306,15 @@ export async function applyMinesweeperAction(gameId, action, cell) {
         body: JSON.stringify({ game_id: gameId, action, cell })
     });
     return fromBackend("minesweeper", data, "action");
+}
+
+export async function resetMinesweeper(gameId) {
+    if (config.mock) return null;
+    const data = await request("/minesweeper/reset", {
+        method: "POST",
+        body: JSON.stringify({ game_id: gameId })
+    });
+    return fromBackend("minesweeper", data, "reset");
 }
 
 // ============================================================
@@ -224,3 +328,4 @@ export async function validateState(puzzle, state) {
         body: JSON.stringify({ state: state?.cells ?? state })
     });
 }
+

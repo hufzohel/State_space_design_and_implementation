@@ -1,4 +1,3 @@
-
 import random
 
 from backend.puzzles.minesweeper.state import (
@@ -23,17 +22,13 @@ class MinesweeperGenerator:
         total = rows * cols
 
         if not 1 <= mine_count < total:
-            raise ValueError(
-                "mine_count must be between 1 and rows * cols - 1."
-            )
+            raise ValueError("mine_count must be between 1 and rows * cols - 1.")
 
         if max_zero_region_size is None:
             max_zero_region_size = max(1, total // 4)
 
         if not 1 <= max_zero_region_size <= total:
-            raise ValueError(
-                "max_zero_region_size must be between 1 and board size."
-            )
+            raise ValueError("max_zero_region_size must be between 1 and board size.")
 
         if max_attempts <= 0:
             raise ValueError("max_attempts must be positive.")
@@ -74,9 +69,7 @@ class MinesweeperGenerator:
                     if not mines[neighbor]:
                         revealed.add(neighbor)
 
-            initial_cells = [UNKNOWN] * (
-                self.rows * self.cols
-            )
+            initial_cells = [UNKNOWN] * (self.rows * self.cols)
 
             for cell in revealed:
                 if not mines[cell]:
@@ -97,6 +90,61 @@ class MinesweeperGenerator:
             f"max_zero_region_size or max_attempts."
         )
 
+    def generate_for_click(self, first_cell, max_attempts=3000):
+        """Build a no-guess mine layout AFTER the player's first click."""
+        from backend.puzzles.minesweeper.action import RevealAction
+        from backend.puzzles.minesweeper.environment import (
+            MinesweeperEnvironment,
+            MinesweeperState as EnvState,
+        )
+        from backend.puzzles.minesweeper.problem import (
+            MinesweeperProblem,
+            MinesweeperState as ProblemState,
+        )
+
+        total = self.rows * self.cols
+
+        if not 0 <= first_cell < total:
+            raise ValueError("first_cell is outside the board.")
+
+        safe_zone = {first_cell, *neighbors(first_cell, self.rows, self.cols)}
+        candidates = [c for c in range(total) if c not in safe_zone]
+
+        if self.mine_count > len(candidates):
+            raise ValueError("Too many mines for a safe first click.")
+
+        blank = tuple([UNKNOWN] * total)
+
+        for _ in range(max_attempts):
+            mine_set = set(self.random.sample(candidates, self.mine_count))
+            mines = tuple(i in mine_set for i in range(total))
+
+            env = MinesweeperEnvironment(self.rows, self.cols, mine_set)
+            problem = MinesweeperProblem(self.rows, self.cols, ProblemState(blank))
+
+            state = env.execute(EnvState(blank), RevealAction(first_cell))
+
+            while not env.is_win(state):
+                forced = problem.forced_actions(state)
+                if not forced:
+                    break
+                for action in forced:
+                    state = env.execute(state, action)
+
+            if env.is_win(state):
+                return {
+                    "rows": self.rows,
+                    "cols": self.cols,
+                    "mines": mines,
+                    "numbers": self._calculate_numbers(mines),
+                    "first_cell": first_cell,
+                }
+
+        raise RuntimeError(
+            "Could not generate a board solvable without guessing. "
+            "Try fewer mines or a smaller board."
+        )
+
     def _generate_mines(self):
         total = self.rows * self.cols
 
@@ -107,10 +155,7 @@ class MinesweeperGenerator:
             )
         )
 
-        return tuple(
-            index in mine_positions
-            for index in range(total)
-        )
+        return tuple(index in mine_positions for index in range(total))
 
     def _calculate_numbers(self, mines):
         numbers = [0] * (self.rows * self.cols)
