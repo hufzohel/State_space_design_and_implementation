@@ -244,7 +244,7 @@ async function solve() {
       algorithm: id,
     });
 
-    if (!r.solutionFound && !config.mock) {
+    if (!r.solutionFound && !config.mock && name !== "minesweeper") {
       throw new Error(`Solver failed: ${r.status}`);
     }
 
