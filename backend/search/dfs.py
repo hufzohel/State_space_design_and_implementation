@@ -45,6 +45,8 @@ class DFSSolver:
                     state,
                     action
                 )
+                if self.problem.outward_openings(next_state) > self.problem.outward_openings(state):
+                    continue
 
                 if next_state in visited:
                     continue

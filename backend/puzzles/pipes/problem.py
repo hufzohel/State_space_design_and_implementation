@@ -237,6 +237,23 @@ class PipesProblem:
 
     #     return components - 1
 
+    def outward_openings(self, state):
+        count = 0
+
+        for index, mask in enumerate(state):
+            row, col = divmod(index, self.cols)
+
+            if row == 0 and mask & UP:
+                count += 1
+            if row == self.rows - 1 and mask & DOWN:
+                count += 1
+            if col == 0 and mask & LEFT:
+                count += 1
+            if col == self.cols - 1 and mask & RIGHT:
+                count += 1
+
+        return count
+
     def heuristic(self, state):
         """
         Count individual violations.

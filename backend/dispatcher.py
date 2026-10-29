@@ -87,26 +87,26 @@ def solve_problem(game: str, algorithm: str, problem, environment=None):
 
 def solve_pipes_puzzle(puzzle, algorithm, max_expansions=None):
     """Solve a Pipes board, preferring the optional fast module."""
-    import logging
-    import os
+    # import logging
+    # import os
 
-    log = logging.getLogger(__name__)
+    # log = logging.getLogger(__name__)
 
-    fast_solver = None
-    if os.getenv("PIPES_FAST_SOLVER", "1") != "0":
-        try:
-            from backend.puzzles.pipes.placement import solve_by_placement
+    # fast_solver = None
+    # if os.getenv("PIPES_FAST_SOLVER", "1") != "0":
+    #     try:
+    #         from backend.puzzles.pipes.placement import solve_by_placement
 
-            fast_solver = solve_by_placement
-        except ModuleNotFoundError as exc:
-            # Only "the add-on is absent" is silenced; a missing dependency
-            # *inside* the add-on is a real bug and must surface.
-            if exc.name != "backend.puzzles.pipes.placement":
-                raise
+    #         fast_solver = solve_by_placement
+    #     except ModuleNotFoundError as exc:
+    #         # Only "the add-on is absent" is silenced; a missing dependency
+    #         # *inside* the add-on is a real bug and must surface.
+    #         if exc.name != "backend.puzzles.pipes.placement":
+    #             raise
 
-    if fast_solver is not None:
-        log.info("Pipes: using optional placement solver (%s)", algorithm)
-        return fast_solver(puzzle, algorithm)
+    # if fast_solver is not None:
+    #     log.info("Pipes: using optional placement solver (%s)", algorithm)
+    #     return fast_solver(puzzle, algorithm)
 
     # ---- standard path: unchanged core solvers ----
     from backend.puzzles.pipes.problem import PipesProblem

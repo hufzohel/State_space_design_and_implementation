@@ -133,6 +133,9 @@ def astar(problem, cost_fn=None, max_expansions=None):
         for action in problem.actions(current):
             next_state = problem.result(current, action)
 
+            if problem.outward_openings(next_state) > problem.outward_openings(current):
+                continue
+
             step_cost = cost_fn(current, action, next_state)
 
             if step_cost < 0:

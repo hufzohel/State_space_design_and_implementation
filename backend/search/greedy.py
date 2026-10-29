@@ -93,7 +93,7 @@ class GreedySolver:
                     key=lambda action: self.problem.heuristic(
                         state,
                         action.cell,
-                        use_entropy=True,
+                        use_entropy=False,
                     ),
                 )
 

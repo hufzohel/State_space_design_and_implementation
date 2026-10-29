@@ -77,10 +77,7 @@ class MinesweeperEnvironment:
             return False
 
         for cell, value in enumerate(state.cells):
-            if cell in self.mines:
-                if value != FLAGGED:
-                    return False
-            elif not is_revealed(value):
+            if cell not in self.mines and not is_revealed(value):
                 return False
 
         return True
