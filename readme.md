@@ -8,6 +8,10 @@ Project tìm hiểu và triển khai các thuật toán tìm kiếm trên không
 Project sử dụng **Python 3** cho phần xử lý bài toán và thuật toán tìm kiếm, **FastAPI** làm backend API, và **HTML/CSS/JavaScript** cho giao diện web.
 
 ---
+Cách thức chạy:
+1. Từ root, chạy trong terminal: uvicorn backend.main:app 
+2. chuột phải frontend/index.html -> open with Live Server.
+---
 
 ## 1. Cấu trúc thư mục
 
