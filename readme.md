@@ -8,9 +8,36 @@ Project tìm hiểu và triển khai các thuật toán tìm kiếm trên không
 Project sử dụng **Python 3** cho phần xử lý bài toán và thuật toán tìm kiếm, **FastAPI** làm backend API, và **HTML/CSS/JavaScript** cho giao diện web.
 
 ---
-Cách thức chạy:
-1. Từ root, chạy trong terminal: uvicorn backend.main:app 
-2. chuột phải frontend/index.html -> open with Live Server.
+
+## Cài đặt và chạy
+
+Yêu cầu: Python 3.
+
+Cài thư viện (từ thư mục gốc của repo):
+
+```text
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Trên Linux/macOS, thay lệnh kích hoạt bằng `source .venv/bin/activate`.
+
+Chạy backend (từ thư mục gốc của repo):
+
+```text
+uvicorn backend.main:app
+```
+
+Backend lắng nghe tại `http://127.0.0.1:8000`, đúng địa chỉ mà `frontend/js/api.js` gọi (`http://127.0.0.1:8000/api`). CORS được cấu hình cho phép mọi origin (`allow_origins=["*"]` trong `backend/main.py`).
+
+Chạy frontend, chọn một trong hai cách:
+
+* Mở `frontend/index.html` bằng Live Server (VS Code).
+* Hoặc, trong thư mục `frontend`, chạy `python -m http.server 5500` rồi mở `http://localhost:5500`.
+
+Phần benchmark xem ở mục "Chạy benchmark" cuối file.
+
 ---
 
 ## 1. Cấu trúc thư mục
@@ -76,14 +103,10 @@ ai-search-project/
 │       └── .gitkeep
 │
 ├── experiments/
-│   ├── benchmark.py
-│   ├── generate_inputs.py
+│   ├── run_benchmark.py
+│   ├── verify_pipes_heuristic.py
 │   │
 │   └── results/
-│       ├── pipes/
-│       │   └── .gitkeep
-│       └── minesweeper/
-│           └── .gitkeep
 │
 ├── tests/
 │   ├── test_pipes.py
@@ -414,53 +437,24 @@ Chứa code phục vụ **benchmark và thí nghiệm**.
 
 Phần này nên độc lập với frontend.
 
-### `benchmark.py`
+### `run_benchmark.py`
 
-Chạy các thuật toán trên nhiều input và thu thập:
+Chạy benchmark trên nhiều cỡ bảng và nhiều seed:
 
-* Execution time.
-* Memory usage.
-* Number of expanded nodes.
-* Solution length.
-* Search result.
+* Pipes: DFS và A*.
+* Minesweeper: Online DFS và Greedy.
 
-Mục tiêu là tạo dữ liệu cho phần đánh giá trong báo cáo.
+Mỗi lần chạy là một tiến trình riêng; thời gian và bộ nhớ (tracemalloc) được đo ở hai lượt tách biệt. Mỗi lần chạy ghi một dòng JSON (status, seconds, steps, expanded, peak_mb, ...). Lệnh `summary` tổng hợp file kết quả thành bảng theo cỡ bảng và thuật toán. Cách chạy xem mục "Chạy benchmark" ở cuối file.
 
-### `generate_inputs.py`
+### `verify_pipes_heuristic.py`
 
-Sinh các bộ input có kích thước/độ khó khác nhau.
-
-Ví dụ:
-
-```text
-Small
-Medium
-Large
-```
-
-hoặc theo các mức difficulty phù hợp với từng puzzle.
+Kiểm tra heuristic của Pipes trên các bàn 3x3 bằng cách so với khoảng cách tối ưu thật h*(s) (vét cạn mọi cấu hình đích): A* có tối ưu không, heuristic có vượt h* không, h = 0 có luôn là đích không, và việc cắt tỉa `outward_openings` có làm đổi kết quả A* không.
 
 ---
 
 ## `experiments/results/`
 
-Lưu kết quả benchmark.
-
-```text
-results/
-├── pipes/
-│   └── .gitkeep
-│
-└── minesweeper/
-    └── .gitkeep
-```
-
-Có thể lưu:
-
-* CSV.
-* JSON.
-* Log.
-* Các dữ liệu benchmark khác.
+Nơi `run_benchmark.py` ghi kết quả (file `.jsonl`). Thư mục được tạo tự động khi chạy benchmark và nằm trong `.gitignore`, nên không được commit.
 
 ---
 
