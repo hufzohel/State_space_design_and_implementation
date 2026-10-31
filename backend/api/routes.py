@@ -603,7 +603,7 @@ def solve_minesweeper(request: MinesweeperSolveRequest):
                 action = max(
                     reveals,
                     key=lambda a: game["problem"].heuristic(
-                        state, a.cell, use_entropy=True
+                        state, a.cell, use_entropy=False
                     ),
                 )
         new_state = game["environment"].execute(state, action)
