@@ -59,3 +59,4 @@ Desktop.ini
 experiments/results/*.csv
 experiments/results/*.json
 experiments/results/*.log
+experiments/results/

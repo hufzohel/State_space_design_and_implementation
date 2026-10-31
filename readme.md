@@ -779,3 +779,19 @@ test: add pipes state tests
 ```
 
 Tránh commit quá nhiều thay đổi không liên quan trong cùng một commit.
+
+## Chạy benchmark
+
+Chạy các lệnh dưới đây từ thư mục gốc của repo.
+
+```text
+python experiments/run_benchmark.py pipes        --out experiments/results/pipes.jsonl
+python experiments/run_benchmark.py minesweeper  --out experiments/results/ms.jsonl --seeds 100
+python experiments/run_benchmark.py summary      --out experiments/results/pipes.jsonl --kind pipes
+python experiments/run_benchmark.py summary      --out experiments/results/ms.jsonl --kind minesweeper
+python experiments/verify_pipes_heuristic.py
+```
+
+* Pipes mặc định chạy 10 seed mỗi cỡ bảng; Minesweeper dùng `--seeds 100`.
+* Mỗi lần chạy là một tiến trình Python riêng. Thời gian và bộ nhớ (tracemalloc) được đo ở hai lượt tách biệt, vì tracemalloc làm chương trình chậm đi.
+* Kết quả được ghi vào `experiments/results/` (thư mục này không được commit).
